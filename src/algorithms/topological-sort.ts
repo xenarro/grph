@@ -52,7 +52,7 @@ const topologicalSort = (graph: Graph): TopologicalSortResult => {
         stack.push({ name, neighbors: graph.getNeighbors(name), next: 0 });
         onStack.add(name);
         tracer.markPoint(name, "current").add("Stack", name);
-        tracer.step(`Visit ${name} and read its neighbors.`, { point: name }, "visit");
+        tracer.step(() => `Visit ${name} and read its neighbors.`, { point: name }, "visit");
     };
 
     // runs a search from one point; returns the cycle when one is found
@@ -65,18 +65,18 @@ const topologicalSort = (graph: Graph): TopologicalSortResult => {
             if (current.next < current.neighbors.length) {
                 const next = current.neighbors[current.next++].name;
                 const focus = { point: name, edge: { from: name, to: next } };
-                const edge = `${name}→${next}`;
+                const edge = () => `${name}→${next}`;
 
                 if (onStack.has(next)) {
-                    tracer.markEdge(name, next, "error").step(`Edge ${edge}: ${next} is still on the stack, so this edge closes a cycle.`, focus, "cycle");
+                    tracer.markEdge(name, next, "error").step(() => `Edge ${edge()}: ${next} is still on the stack, so this edge closes a cycle.`, focus, "cycle");
                     const names = stack.map(entry => entry.name);
                     return [...names.slice(names.indexOf(next)), next];
                 }
                 if (finished.has(next)) {
-                    tracer.markEdge(name, next, "skipped").step(`Edge ${edge}: ${next} is already in the order. Skip it.`, focus, "skip");
+                    tracer.markEdge(name, next, "skipped").step(() => `Edge ${edge()}: ${next} is already in the order. Skip it.`, focus, "skip");
                     continue;
                 }
-                tracer.markEdge(name, next, "tree").step(`Edge ${edge}: ${next} is not visited yet. Go deeper, to ${next}.`, focus, "deeper");
+                tracer.markEdge(name, next, "tree").step(() => `Edge ${edge()}: ${next} is not visited yet. Go deeper, to ${next}.`, focus, "deeper");
                 visit(next);
                 continue;
             }
@@ -91,7 +91,7 @@ const topologicalSort = (graph: Graph): TopologicalSortResult => {
             if (back !== undefined) {
                 tracer.markPoint(back.name, "current");
             }
-            tracer.step(`Everything reachable from ${name} is already in the order, so ${name} goes to the front.`, { point: name }, "finish");
+            tracer.step(() => `Everything reachable from ${name} is already in the order, so ${name} goes to the front.`, { point: name }, "finish");
         }
         return null;
     };
@@ -100,7 +100,7 @@ const topologicalSort = (graph: Graph): TopologicalSortResult => {
         if (finished.has(name)) {
             continue;
         }
-        tracer.step(`${name} is not visited yet. Start a depth-first search from ${name}.`, { point: name }, "root");
+        tracer.step(() => `${name} is not visited yet. Start a depth-first search from ${name}.`, { point: name }, "root");
 
         const cycle = search(name);
         if (cycle) {

@@ -115,30 +115,30 @@ const dijkstra = (graph: Graph, start: string, target?: string): DijkstraResult 
         tracer.removeAt("Queue", 0).add("Finished", name).markPoint(name, "current");
 
         if (name === target) {
-            tracer.step(`Take ${name}, the nearest point in the queue, at distance ${format(distance)}. It is the target, so this is the lightest path to it.`, { point: name }, "target");
+            tracer.step(() => `Take ${name}, the nearest point in the queue, at distance ${format(distance)}. It is the target, so this is the lightest path to it.`, { point: name }, "target");
             found = true;
             break;
         }
-        tracer.step(`Take ${name}, the nearest point in the queue, at distance ${format(distance)}. No path to it can be lighter, so this distance is final. Try its edges.`, { point: name }, "take");
+        tracer.step(() => `Take ${name}, the nearest point in the queue, at distance ${format(distance)}. No path to it can be lighter, so this distance is final. Try its edges.`, { point: name }, "take");
 
         for (const { name: next, weight } of graph.getNeighbors(name)) {
             const focus = { point: name, edge: { from: name, to: next } };
-            const edge = `${name}${arrow}${next}`;
+            const edge = () => `${name}${arrow}${next}`;
 
             if (finished.has(next)) {
                 if (!graph.directed && cameFrom.get(name) === next) {
-                    tracer.step(`Edge ${edge} leads back to ${next}, where ${name} was reached from. Skip it.`, focus, "skip");
+                    tracer.step(() => `Edge ${edge()} leads back to ${next}, where ${name} was reached from. Skip it.`, focus, "skip");
                 } else {
                     if (tracer.edgeMark(name, next) === undefined) {
                         tracer.markEdge(name, next, "skipped");
                     }
-                    tracer.step(`Edge ${edge}: ${next} is already finished. Skip it.`, focus, "skip");
+                    tracer.step(() => `Edge ${edge()}: ${next} is already finished. Skip it.`, focus, "skip");
                 }
                 continue;
             }
 
             const through = distance + weight;
-            const sum = `${format(distance)} + ${format(weight)} = ${format(through)}`;
+            const sum = () => `${format(distance)} + ${format(weight)} = ${format(through)}`;
             const known = distances.get(next);
             if (known === undefined || through < known) {
                 const from = cameFrom.get(next);
@@ -150,15 +150,15 @@ const dijkstra = (graph: Graph, start: string, target?: string): DijkstraResult 
                 cameFrom.set(next, name);
                 tracer.markEdge(name, next, "tree").markPoint(next, "active").label(next, format(through));
                 enqueue(next, through);
-                tracer.step(known === undefined
-                    ? `Edge ${edge}, weight ${format(weight)}: ${next} is reached for the first time, at ${sum}. Put it in the queue.`
-                    : `Edge ${edge}, weight ${format(weight)}: through ${name}, ${next} is nearer: ${sum} instead of ${format(known)}. Move it up the queue.`,
+                tracer.step(() => known === undefined
+                    ? `Edge ${edge()}, weight ${format(weight)}: ${next} is reached for the first time, at ${sum()}. Put it in the queue.`
+                    : `Edge ${edge()}, weight ${format(weight)}: through ${name}, ${next} is nearer: ${sum()} instead of ${format(known)}. Move it up the queue.`,
                 focus, "nearer");
             } else {
                 if (tracer.edgeMark(name, next) === undefined) {
                     tracer.markEdge(name, next, "skipped");
                 }
-                tracer.step(`Edge ${edge}, weight ${format(weight)}: ${sum} is not less than ${next}'s distance ${format(known)}. Keep ${next} as it is.`, focus, "keep");
+                tracer.step(() => `Edge ${edge()}, weight ${format(weight)}: ${sum()} is not less than ${next}'s distance ${format(known)}. Keep ${next} as it is.`, focus, "keep");
             }
         }
         previous = name;

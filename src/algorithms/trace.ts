@@ -56,10 +56,10 @@ export interface Step {
 
 export const MAX_STEPS = 100_000;
 
-// The same key for both directions of an undirected edge.
+// The same key for both directions of an undirected edge. The length of the first name keeps edges apart
+// even when their names run together the same way ("AB" with "C", "A" with "BC"), and costs far less than JSON.
 export function edgeKey(from: string, to: string, directed: boolean): string {
-    const [x, y] = directed || from < to ? [from, to] : [to, from];
-    return JSON.stringify([x, y]);
+    return directed || from < to ? `${from.length}:${from}:${to}` : `${to.length}:${to}:${from}`;
 }
 
 // ---- what a step stores
@@ -77,7 +77,12 @@ type Change =
     | { readonly kind: "add"; readonly list: string; readonly item: string }
     | { readonly kind: "remove"; readonly list: string; readonly item: string }
     | { readonly kind: "insert"; readonly list: string; readonly index: number; readonly item: string }
-    | { readonly kind: "removeAt"; readonly list: string; readonly index: number; readonly item: string };
+    | { readonly kind: "removeAt"; readonly list: string; readonly index: number; readonly item: string }
+    // the whole list at once, for the combined last step
+    | { readonly kind: "replace"; readonly list: string; readonly before: readonly string[]; readonly after: readonly string[] };
+
+// a step's message, or a function that writes it (see Tracer.step)
+export type Message = string | (() => string);
 
 interface RecordedStep {
     readonly message: string;
@@ -102,8 +107,10 @@ class State {
             this.list(change.list).stored.pop();
         } else if (change.kind === "insert") {
             this.list(change.list).stored.splice(change.index, 0, change.item);
+        } else if (change.kind === "removeAt") {
+            removeItem(this.list(change.list).stored, change.index);
         } else {
-            this.list(change.list).stored.splice(change.index, 1);
+            refill(this.list(change.list).stored, change.after);
         }
     }
 
@@ -119,9 +126,11 @@ class State {
         } else if (change.kind === "remove") {
             this.list(change.list).stored.push(change.item);
         } else if (change.kind === "insert") {
-            this.list(change.list).stored.splice(change.index, 1);
-        } else {
+            removeItem(this.list(change.list).stored, change.index);
+        } else if (change.kind === "removeAt") {
             this.list(change.list).stored.splice(change.index, 0, change.item);
+        } else {
+            refill(this.list(change.list).stored, change.before);
         }
     }
 
@@ -131,6 +140,24 @@ class State {
             throw new Error(`Trace list ${name} was not created`);
         }
         return list;
+    }
+}
+
+// Taking the first item of a queue is the most common removal. shift() does it without moving the other
+// items (the engine moves the start of the array instead); splice(0, 1) moves every one of them.
+function removeItem(stored: string[], index: number): void {
+    if (index === 0) {
+        stored.shift();
+    } else {
+        stored.splice(index, 1);
+    }
+}
+
+// puts these items into the list in place, like every other change, so the lists a step shows stay live views
+function refill(stored: string[], items: readonly string[]): void {
+    stored.length = items.length;
+    for (let i = 0; i < items.length; i++) {
+        stored[i] = items[i];
     }
 }
 
@@ -194,11 +221,13 @@ export class Tracer {
     private readonly state = new State();
     private readonly lists: ListShape[] = [];
     private changes: Change[] = [];
-    // past maxSteps: how many steps went into the last one, its latest message,
-    // and where each key's combined change is in `changes`
+    // Past maxSteps the steps are not kept one by one: a change goes straight into the state, and the
+    // last step is worked out at the end by comparing the state with how it was when the limit was reached.
+    // How many steps went into the last one, and its latest message:
     private skipped = 0;
-    private latest: { message: string; focus: Focus; line?: string } | null = null;
-    private readonly combined = new Map<string, number>();
+    private latest: { message: Message; focus: Focus; line?: string } | null = null;
+    // the marks, labels and lists when the limit was reached
+    private atLimit: { maps: Record<MapName, ReadonlyMap<string, string>>; lists: ReadonlyMap<string, readonly string[]> } | null = null;
 
     constructor(private readonly directed: boolean, private readonly maxSteps: number = MAX_STEPS) {}
 
@@ -264,11 +293,22 @@ export class Tracer {
         return this.record({ kind: "removeAt", list, index, item: stored[index] });
     }
 
-    // `line` names the line of the algorithm's pseudocode the step is at
-    step(message: string, focus: Focus = {}, line?: string): this {
-        if (this.steps.length < this.maxSteps) {
-            this.steps.push({ message, focus, line, changes: this.changes });
+    // `line` names the line of the algorithm's pseudocode the step is at.
+    // The message can be a function that writes it: then it is written only for the steps that are kept
+    // one by one and for the last one, not for every step past the limit. On a big graph that saves
+    // writing millions of texts nobody reads. The last one is written by trace(), so a function must not
+    // read anything that changes after its step.
+    step(message: Message, focus: Focus = {}, line?: string): this {
+        if (this.keepsSteps) {
+            this.steps.push({ message: typeof message === "string" ? message : message(), focus, line, changes: this.changes });
             this.changes = [];
+            if (!this.keepsSteps) {
+                const { maps, lists } = this.state;
+                this.atLimit = {
+                    maps: { points: new Map(maps.points), edges: new Map(maps.edges), labels: new Map(maps.labels) },
+                    lists: new Map([...lists].map(([name, { stored }]) => [name, [...stored]])),
+                };
+            }
         } else {
             this.skipped++;
             this.latest = { message, focus, line };
@@ -281,34 +321,53 @@ export class Tracer {
         if (!this.latest) {
             return new Trace(this.steps, this.lists);
         }
+        // A mark changed many times past the limit needs only its value then and now, so the last step
+        // grows with the size of the graph, not with the number of steps.
+        const changes: Change[] = [];
+        (["points", "edges", "labels"] as const).forEach(map => {
+            const then = this.atLimit?.maps[map];
+            this.state.maps[map].forEach((after, key) => {
+                const before = then?.get(key);
+                if (after !== before) {
+                    changes.push({ kind: "set", map, key, before, after });
+                }
+            });
+        });
+        this.state.lists.forEach(({ stored }, list) => {
+            const before = this.atLimit?.lists.get(list) ?? [];
+            if (stored.length !== before.length || stored.some((item, i) => item !== before[i])) {
+                changes.push({ kind: "replace", list, before, after: [...stored] });
+            }
+        });
+        const { message, focus, line } = this.latest;
         const last = {
-            message: `${this.skipped.toLocaleString("en-US")} more steps, not kept one by one. ${this.latest.message}`,
-            focus: this.latest.focus,
-            line: this.latest.line,
-            changes: this.changes,
+            message: `${this.skipped.toLocaleString("en-US")} more steps, not kept one by one. ${typeof message === "string" ? message : message()}`,
+            focus,
+            line,
+            changes,
         };
         return new Trace([...this.steps, last], this.lists);
     }
 
+    private get keepsSteps(): boolean {
+        return this.steps.length < this.maxSteps;
+    }
+
     private set(map: MapName, key: string, after: string): this {
-        const before = this.state.maps[map].get(key);
+        const values = this.state.maps[map];
+        if (!this.keepsSteps) {
+            values.set(key, after);
+            return this;
+        }
+        const before = values.get(key);
         return before === after ? this : this.record({ kind: "set", map, key, before, after });
     }
 
     private record(change: Change): this {
         this.state.apply(change);
-        if (this.steps.length >= this.maxSteps && change.kind === "set") {
-            // in the combined last step, a point or edge changed many times needs only its first
-            // and last value, so the step grows with the size of the graph, not the number of steps
-            const id = `${change.map} ${change.key}`;
-            const index = this.combined.get(id);
-            if (index !== undefined) {
-                this.changes[index] = { ...(this.changes[index] as typeof change), after: change.after };
-                return this;
-            }
-            this.combined.set(id, this.changes.length);
+        if (this.keepsSteps) {
+            this.changes.push(change);
         }
-        this.changes.push(change);
         return this;
     }
 }

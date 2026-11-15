@@ -56,20 +56,20 @@ const bfs = (graph: Graph, start: string, target?: string): BfsResult => {
         const distance = distances.get(name)!;
         order.push(name);
         tracer.removeAt("Queue", 0).add("Visited", name).markPoint(name, "current");
-        tracer.step(`Take ${name} from the front of the queue. It is ${edges(distance)} from ${start}; read its neighbors.`, { point: name }, "take");
+        tracer.step(() => `Take ${name} from the front of the queue. It is ${edges(distance)} from ${start}; read its neighbors.`, { point: name }, "take");
 
         for (const { name: next } of graph.getNeighbors(name)) {
             const focus = { point: name, edge: { from: name, to: next } };
-            const edge = `${name}${arrow}${next}`;
+            const edge = () => `${name}${arrow}${next}`;
 
             if (distances.has(next)) {
                 if (!graph.directed && cameFrom.get(name) === next) {
-                    tracer.step(`Edge ${edge} leads back to ${next}, where ${name} was reached from. Skip it.`, focus, "skip");
+                    tracer.step(() => `Edge ${edge()} leads back to ${next}, where ${name} was reached from. Skip it.`, focus, "skip");
                 } else {
                     if (tracer.edgeMark(name, next) === undefined) {
                         tracer.markEdge(name, next, "skipped");
                     }
-                    tracer.step(`Edge ${edge}: ${next} is already reached. Skip it.`, focus, "skip");
+                    tracer.step(() => `Edge ${edge()}: ${next} is already reached. Skip it.`, focus, "skip");
                 }
                 continue;
             }
@@ -79,11 +79,11 @@ const bfs = (graph: Graph, start: string, target?: string): BfsResult => {
             queue.push(next);
             tracer.markEdge(name, next, "tree").markPoint(next, "active").label(next, String(distance + 1)).add("Queue", next);
             if (next === target) {
-                tracer.step(`Edge ${edge}: ${next} is new, and it is the target, ${edges(distance + 1)} from ${start}.`, focus, "target");
+                tracer.step(() => `Edge ${edge()}: ${next} is new, and it is the target, ${edges(distance + 1)} from ${start}.`, focus, "target");
                 found = true;
                 break;
             }
-            tracer.step(`Edge ${edge}: ${next} is new, ${edges(distance + 1)} from ${start}. Put it at the back of the queue.`, focus, "reach");
+            tracer.step(() => `Edge ${edge()}: ${next} is new, ${edges(distance + 1)} from ${start}. Put it at the back of the queue.`, focus, "reach");
         }
         if (!found) {
             // every neighbor is checked: the point is done, which shows from the next step on

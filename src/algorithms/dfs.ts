@@ -56,10 +56,10 @@ const dfs = (graph: Graph, start: string, target?: string): DfsResult => {
 
         if (name === target) {
             stack.push({ name, neighbors: [], next: 0 });
-            tracer.step(`Visit ${name}. It is the target.`, { point: name }, "target");
+            tracer.step(() => `Visit ${name}. It is the target.`, { point: name }, "target");
             return true;
         }
-        tracer.step(`Visit ${name} and read its neighbors.`, { point: name }, "visit");
+        tracer.step(() => `Visit ${name} and read its neighbors.`, { point: name }, "visit");
         stack.push({ name, neighbors: graph.getNeighbors(name), next: 0 });
         return false;
     };
@@ -72,15 +72,15 @@ const dfs = (graph: Graph, start: string, target?: string): DfsResult => {
         if (current.next < current.neighbors.length) {
             const next = current.neighbors[current.next++].name;
             const focus = { point: name, edge: { from: name, to: next } };
-            const edge = `${name}${arrow}${next}`;
+            const edge = () => `${name}${arrow}${next}`;
 
             if (!graph.directed && cameFrom.get(name) === next) {
-                tracer.step(`Edge ${edge} leads back to ${next}, where ${name} was reached from. Skip it.`, focus, "skip");
+                tracer.step(() => `Edge ${edge()} leads back to ${next}, where ${name} was reached from. Skip it.`, focus, "skip");
             } else if (visited.has(next)) {
-                tracer.markEdge(name, next, "skipped").step(`Edge ${edge}: ${next} is already visited. Skip it.`, focus, "skip");
+                tracer.markEdge(name, next, "skipped").step(() => `Edge ${edge()}: ${next} is already visited. Skip it.`, focus, "skip");
             } else {
                 cameFrom.set(next, name);
-                tracer.markEdge(name, next, "tree").step(`Edge ${edge}: ${next} is not visited yet. Go deeper, to ${next}.`, focus, "deeper");
+                tracer.markEdge(name, next, "tree").step(() => `Edge ${edge()}: ${next} is not visited yet. Go deeper, to ${next}.`, focus, "deeper");
                 found = visit(next);
             }
             continue;
@@ -91,9 +91,9 @@ const dfs = (graph: Graph, start: string, target?: string): DfsResult => {
         const back = stack[stack.length - 1]?.name;
         tracer.markPoint(name, "done").removeNewest("Stack");
         if (back === undefined) {
-            tracer.step(`All neighbors of ${name} are checked. ${name} is done.`, { point: name }, "back");
+            tracer.step(() => `All neighbors of ${name} are checked. ${name} is done.`, { point: name }, "back");
         } else {
-            tracer.markPoint(back, "current").step(`All neighbors of ${name} are checked. ${name} is done, go back to ${back}.`, { point: name }, "back");
+            tracer.markPoint(back, "current").step(() => `All neighbors of ${name} are checked. ${name} is done, go back to ${back}.`, { point: name }, "back");
         }
     }
 
