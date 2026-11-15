@@ -154,4 +154,42 @@ describe("App", () => {
         expect(app.model.points()).toEqual(presets[1].data.points.map(p => p.name));
         expect(app.recipe).toBeNull();
     });
+
+    it("starts a search at the first point until another one is chosen, and at no target", () => {
+        const app = new App();
+        app.loadExample(presets[0].id);
+        const [first, second, third] = app.model.points();
+        expect(app.start).toBe(first);
+        expect(app.target).toBeNull();
+
+        app.chooseStart(second);
+        app.chooseTarget(third);
+        expect([app.start, app.target]).toEqual([second, third]);
+
+        // a name that is not a point is ignored
+        app.chooseStart("nope");
+        app.chooseTarget("nope");
+        expect([app.start, app.target]).toEqual([second, third]);
+
+        // deleting the chosen points gives the first point back as the start, and no target
+        app.select({ kind: "point", name: second });
+        app.deleteSelection();
+        app.select({ kind: "point", name: third });
+        app.deleteSelection();
+        expect([app.start, app.target]).toEqual([first, null]);
+    });
+
+    it("clears the selection when a selected point becomes the start or target, so the next click doesn't connect", () => {
+        const app = new App();
+        app.loadExample(presets[0].id);
+        const [, second, third] = app.model.points();
+        app.clickPoint(second);
+        app.chooseStart(second, true);
+        app.clickPoint(third);
+        expect(app.model.hasEdge(second, third)).toBe(false);
+        expect(app.selection).toEqual({ kind: "point", name: third });
+        app.chooseTarget(third, true);
+        expect(app.selection).toBeNull();
+        expect([app.start, app.target]).toEqual([second, third]);
+    });
 });

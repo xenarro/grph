@@ -20,6 +20,7 @@ npm run dev     # then open the printed address, usually http://localhost:5173
 - **Build a graph.** Click empty paper to add a point. Drag a point to move it. Click a point and then another point to connect them. Click an edge to change its weight, and press Delete to remove the selected point or edge. Switch between undirected and directed edges, load one of the examples, or generate a random graph of 100 to 100,000 points. The examples include big graphs of 10,000 and 100,000 points: only their recipes are in the code, and each is generated when you choose it.
 - **Move around.** Scroll, pinch on a trackpad or use two fingers to zoom, and drag empty paper to move the view. **Fit** shows the whole graph. Points show their names when they are big enough on screen, and become dots when a whole big graph is in view.
 - **See how it is stored.** The adjacency matrix (and the flat array it is stored in), the adjacency list and the incidence matrix update on every edit. Each one shows how many cells or entries it uses. Clicking a point or edge in a structure selects it in the drawing.
+- **Find a shortest path.** Click a point and press **Start here**, click another and press **Target here**, then run **Shortest path (Dijkstra)** for the lightest path, or **Breadth-first search** for the one with the fewest edges. The path turns blue and every point shows its distance.
 - **Step through an algorithm.** Pick an algorithm, its start and target, and which representation it reads neighbours from, then press Run. You can step back and forward, play automatically, or use ← → and Space. Each step says what is happening. Points are coloured the way textbooks colour them: white = not reached, gray = reached, black = finished. A highlighter marks what the algorithm is reading, both in the drawing and in all three structures.
 
 ### Big graphs
@@ -100,20 +101,27 @@ Every representation follows the same rules:
 ## Algorithms
 
 ```ts
-import { AdjacencyList, dfs, topologicalSort } from "grph";
+import { AdjacencyList, bfs, dfs, dijkstra, topologicalSort } from "grph";
 
 const graph = new AdjacencyList().addEdge("A", "B").addEdge("A", "C").addEdge("B", "D");
 dfs(graph, "A").order;          // ["A", "B", "D", "C"]
 dfs(graph, "A", "D").path;      // ["A", "B", "D"]
+
+// A–B–C weighs 1 + 1, the direct edge A–C weighs 5
+const roads = new AdjacencyList().addEdge("A", "B", 1).addEdge("B", "C", 1).addEdge("A", "C", 5);
+dijkstra(roads, "A", "C").path; // ["A", "B", "C"], the lightest: total weight 2
+bfs(roads, "A", "C").path;      // ["A", "C"], the fewest edges
 
 const tasks = new AdjacencyList(true).addEdge("shirt", "tie").addEdge("tie", "jacket");
 topologicalSort(tasks).order;   // ["shirt", "tie", "jacket"]
 ```
 
 - **Depth-first search** (`src/algorithms/dfs.ts`) starts at one point and goes as deep as possible before going back. If you give a target, it stops there and returns the path.
+- **Breadth-first search** (`src/algorithms/bfs.ts`) visits points in rings around the start, so it finds the path with the fewest edges. Weights are ignored.
+- **Dijkstra's algorithm** (`src/algorithms/dijkstra.ts`) finds the lightest path from the start to every point. It keeps the reached points in a priority queue (a binary heap, `src/algorithms/priority-queue.ts`) and each round finishes the nearest one. With a target it stops there and returns the path and its total weight.
 - **Topological sort** (`src/algorithms/topological-sort.ts`) orders the points of a directed graph so that every edge goes forward. If the graph has a cycle, it returns that cycle instead, because then no such order exists.
 
-Each algorithm also returns `steps`, a `Trace`: `steps.at(i)` gives the point and edge marks at step i, its stack or result lists, and what it is reading. A step stores only what changed, with the old values, so the trace moves forwards and backwards by applying or undoing changes. Both algorithms keep their own stack instead of calling themselves, so they work on graphs far deeper than JavaScript's call stack. To add an algorithm (BFS and Dijkstra are next), record its steps with a `Tracer` (`src/algorithms/trace.ts`) and add it to the list in `src/algorithms/index.ts`. The visualizer picks it up from there.
+Each algorithm also returns `steps`, a `Trace`: `steps.at(i)` gives the point and edge marks at step i, its stack or result lists, and what it is reading. A step stores only what changed, with the old values, so the trace moves forwards and backwards by applying or undoing changes. The depth-first searches keep their own stack instead of calling themselves, so they work on graphs far deeper than JavaScript's call stack. To add an algorithm, record its steps with a `Tracer` (`src/algorithms/trace.ts`) and add it to the list in `src/algorithms/index.ts`. The visualizer picks it up from there.
 
 ## Scripts
 
@@ -142,6 +150,9 @@ src/                          the library
 │   └── interfaces/           Graph, Edge, Neighbor, Point
 └── algorithms/
     ├── dfs.ts
+    ├── bfs.ts
+    ├── dijkstra.ts
+    ├── priority-queue.ts     a binary heap, for Dijkstra's queue
     ├── topological-sort.ts
     ├── trace.ts              step recording for replay
     ├── algorithm.ts          the interface the visualizer runs

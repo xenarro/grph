@@ -92,8 +92,22 @@ export function mountPlayer(root: HTMLElement, app: App): void {
 
     const fillPointOptions = () => {
         const points = app.model.points();
-        start.fill(points, points[0] ?? "");
-        target.fill(points, "");
+        start.fill(points, app.start ?? "");
+        target.fill(points, app.target ?? "");
+    };
+
+    // The start or target was chosen on a point in the drawing: show it here. A run with other
+    // points is out of date, and an algorithm without a target gives way to the shortest path.
+    const showChosenPoints = () => {
+        const changed = start.value() !== (app.start ?? "") || target.value() !== (app.target ?? "");
+        start.setValue(app.start ?? "");
+        target.setValue(app.target ?? "");
+        if (app.target !== null && selected().target === "none") {
+            algorithm.value = "dijkstra";
+            clearRun();
+        } else if (changed && steps) {
+            clearRun("The start or target changed. Run the algorithm again.");
+        }
     };
 
     // a matrix the graph is too big for can't be chosen
@@ -200,8 +214,18 @@ export function mountPlayer(root: HTMLElement, app: App): void {
     slider.addEventListener("input", () => { stop(); show(Number(slider.value)); });
 
     algorithm.addEventListener("change", () => clearRun());
-    start.onChange(() => clearRun());
-    target.onChange(() => clearRun());
+    // a typed name that is not a point is not taken: the field goes back to the chosen point
+    const missing = (name: string) => name !== "" && !app.model.list.hasPoint(name) ? `There is no point ${name}.` : "";
+    start.onChange(() => {
+        const note = missing(start.value());
+        app.chooseStart(start.value());
+        clearRun(note);
+    });
+    target.onChange(() => {
+        const note = missing(target.value());
+        app.chooseTarget(target.value() || null);
+        clearRun(note);
+    });
     readFrom.addEventListener("change", () => {
         app.setReadFrom(readFrom.value as RepresentationId);
         clearRun(steps ? "Run again to read the neighbors from the other representation. The visiting order can change." : "");
@@ -231,6 +255,8 @@ export function mountPlayer(root: HTMLElement, app: App): void {
             fillPointOptions();
             fillReadFromOptions();
             clearRun(steps ? "The graph changed. Run the algorithm again." : "");
+        } else if (change === "view") {
+            showChosenPoints();
         }
     });
 
@@ -259,23 +285,27 @@ class PointField {
         this.field = h("div", { class: "field" }, [this.label, this.select, this.input]);
     }
 
-    // shows the graph's points, keeping the current choice while that point still exists
-    fill(points: string[], fallback: string): void {
-        const current = this.value();
+    // shows the graph's points, with `value` chosen
+    fill(points: string[], value: string): void {
         this.typed = points.length > MAX_OPTIONS;
         this.select.hidden = this.typed;
         this.input.hidden = !this.typed;
         this.label.htmlFor = this.typed ? this.input.id : this.select.id;
-        const keep = current !== "" && (this.typed ? new Set(points).has(current) : points.includes(current));
-        const value = keep ? current : fallback;
         if (this.typed) {
             this.select.replaceChildren();
-            this.input.value = value;
         } else {
             this.select.replaceChildren(
                 ...(this.optional ? [h("option", { value: "" }, ["None"])] : []),
                 ...points.map(p => h("option", { value: p }, [p])),
             );
+        }
+        this.setValue(value);
+    }
+
+    setValue(value: string): void {
+        if (this.typed) {
+            this.input.value = value;
+        } else {
             this.select.value = value;
         }
     }
@@ -293,13 +323,13 @@ class PointField {
 // A list of a big graph can hold thousands of points: only the newest ones are shown as chips,
 // and one more chip says how many are left out.
 const MAX_CHIPS = 30;
-function chips({ items, newestFirst }: TraceList): HTMLElement[] {
-    const shown = newestFirst ? items.slice(0, MAX_CHIPS) : items.slice(-MAX_CHIPS);
+function chips({ items, keep }: TraceList): HTMLElement[] {
+    const shown = keep === "front" ? items.slice(0, MAX_CHIPS) : items.slice(-MAX_CHIPS);
     const chips = shown.map(item => h("li", {}, [item]));
     const hidden = items.length - shown.length;
     if (hidden > 0) {
         const more = h("li", { class: "more" }, [`… ${hidden.toLocaleString("en-US")} more`]);
-        newestFirst ? chips.push(more) : chips.unshift(more);
+        keep === "front" ? chips.push(more) : chips.unshift(more);
     }
     return chips;
 }

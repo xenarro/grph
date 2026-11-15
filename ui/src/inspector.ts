@@ -20,11 +20,21 @@ export function mountInspector(root: HTMLElement, app: App): void {
         }
 
         if (selected.kind === "point") {
+            const { name } = selected;
             const remove = h("button", { type: "button" }, ["Delete point"]);
             remove.addEventListener("click", () => app.deleteSelection());
+            // a search runs from the start to the target: pick them here, then press Run
+            const isStart = app.start === name;
+            const isTarget = app.target === name;
+            const start = h("button", { type: "button", "aria-pressed": String(isStart) }, [isStart ? "Start ✓" : "Start here"]);
+            start.addEventListener("click", () => app.chooseStart(name, true));
+            const target = h("button", { type: "button", "aria-pressed": String(isTarget) }, [isTarget ? "Target ✓" : "Target here"]);
+            target.addEventListener("click", () => app.chooseTarget(isTarget ? null : name, true));
             root.replaceChildren(
-                h("strong", {}, ["Point ", h("em", { class: "math" }, [selected.name])]),
-                notice || h("p", { class: "hint" }, [`Click another point to connect ${selected.name} to it.`]),
+                h("strong", {}, ["Point ", h("em", { class: "math" }, [name])]),
+                notice || h("p", { class: "hint" }, [`Click another point to connect ${name} to it, or make it where a search starts or ends.`]),
+                start,
+                target,
                 remove,
             );
             return;

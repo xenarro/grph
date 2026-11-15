@@ -48,6 +48,9 @@ describe("Tracer and Trace", () => {
         const order = record().at(-1).lists[1];
         expect(order.newestFirst).toBe(true);
         expect(order.items).toEqual(["A", "B"]);
+        expect(order.keep).toBe("front");
+        expect(new Tracer(false).list("Stack").list("Queue", { keep: "front" }).step("").trace().at(0).lists.map(l => l.keep))
+            .toEqual(["back", "front"]);
     });
 
     it("keeps the steps past the limit as one last step with combined changes", () => {

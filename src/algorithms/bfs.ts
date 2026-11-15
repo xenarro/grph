@@ -41,7 +41,7 @@ const bfs = (graph: Graph, start: string, target?: string): BfsResult => {
     let front = 0;
     const edges = (count: number) => count === 1 ? "1 edge" : `${count} edges`;
 
-    tracer.list("Queue").list("Visited");
+    tracer.list("Queue", { keep: "front" }).list("Visited");
     distances.set(start, 0);
     queue.push(start);
     tracer.markPoint(start, "active").label(start, "0").add("Queue", start);

@@ -40,6 +40,9 @@ export class App {
     loads = 1;
     // the recipe of a generated graph, until the graph is edited
     recipe: Recipe | null = null;
+    // the point a search ends at, null for none; see `start` for where it begins
+    target: string | null = null;
+    private chosenStart: string | null = null;
     private readonly listeners: ((change: Change) => void)[] = [];
 
     constructor(model: GraphModel = new GraphModel()) {
@@ -75,6 +78,9 @@ export class App {
             // a matrix the graph has outgrown can't be read any more
             if (!this.model.representation(this.readFrom)) {
                 this.readFrom = "list";
+            }
+            if (this.target !== null && !this.model.list.hasPoint(this.target)) {
+                this.target = null;
             }
         }
         if (change !== "positions") {
@@ -221,6 +227,37 @@ export class App {
 
     showStep(step: Step | null): void {
         this.step = step;
+        this.emit("view");
+    }
+
+    // The point a search starts at: the one chosen while it exists, otherwise the first point.
+    get start(): string | null {
+        if (this.chosenStart !== null && this.model.list.hasPoint(this.chosenStart)) {
+            return this.chosenStart;
+        }
+        return this.model.list.graph.keys().next().value ?? null;
+    }
+
+    // Ignored for a name that is not a point of the graph. `deselect` clears the selection, so after
+    // choosing a selected point the next click on a point chooses it instead of connecting the two.
+    chooseStart(name: string, deselect = false): void {
+        if (this.model.list.hasPoint(name)) {
+            this.chosenStart = name;
+        }
+        if (deselect) {
+            this.selection = null;
+        }
+        this.emit("view");
+    }
+
+    // null for no target; otherwise like chooseStart
+    chooseTarget(name: string | null, deselect = false): void {
+        if (name === null || this.model.list.hasPoint(name)) {
+            this.target = name;
+        }
+        if (deselect) {
+            this.selection = null;
+        }
         this.emit("view");
     }
 

@@ -101,8 +101,10 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
         return { minX, minY, maxX, maxY };
     };
 
+    // a few pixels of paper around the graph, so the start and target tags fit too
+    const FIT_PADDING = 20;
     const fitScale = (box: { minX: number; minY: number; maxX: number; maxY: number }) =>
-        Math.min(width / (box.maxX - box.minX), height / (box.maxY - box.minY)) || 1;
+        Math.min((width - 2 * FIT_PADDING) / (box.maxX - box.minX), (height - 2 * FIT_PADDING) / (box.maxY - box.minY)) || 1;
 
     const minScale = () => Math.min(0.5, fitScale(graphBox()) / 4);
 
@@ -295,7 +297,9 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
             context.beginPath();
             group.forEach(drawn => tracePath(context, drawn));
             context.strokeStyle = color;
-            context.lineWidth = detail === "dots" ? 1 : Math.max(1, look.width * drawScale);
+            // in a whole big graph a result or a cycle has to stand out from thousands of thin lines
+            const standsOut = mark === "result" || mark === "error";
+            context.lineWidth = detail === "dots" ? (standsOut ? 3 : 1) : Math.max(1, look.width * drawScale);
             context.globalAlpha = detail === "dots" && (mark === "plain" || mark === "skipped") ? 0.35 : 1;
             context.setLineDash(mark === "skipped" && detail !== "dots" ? [6 * drawScale, 5 * drawScale] : []);
             context.stroke();
@@ -361,8 +365,9 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
             }
             for (const [color, list] of byColor) {
                 context.fillStyle = color;
+                const size = color === colors.blue || color === colors.red ? Math.max(dot, 4) : dot;
                 for (const at of list) {
-                    context.fillRect(Math.round(at.x - dot / 2), Math.round(at.y - dot / 2), dot, dot);
+                    context.fillRect(Math.round(at.x - size / 2), Math.round(at.y - size / 2), size, size);
                 }
             }
         } else {
@@ -405,6 +410,30 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
                 context.fillStyle = colors.ink;
                 context.fillText(label, bx, by + 0.5 * drawScale);
             }
+        }
+
+        // where a search starts and ends, tagged in every level of detail so they can be found in a big graph
+        const ends = [{ name: app.start, tag: "start" }, { name: app.target, tag: "target" }];
+        context.font = `600 11px ${colors.fontUi}`;
+        context.textAlign = "center";
+        context.textBaseline = "bottom";
+        for (const { name, tag } of ends) {
+            const end = name === null ? undefined : shown.find(p => p.name === name);
+            if (!end) {
+                continue;
+            }
+            const ring = Math.max(end.r + 4 * drawScale, 6);
+            context.beginPath();
+            context.arc(end.at.x, end.at.y, ring, 0, Math.PI * 2);
+            context.strokeStyle = colors.ink;
+            context.lineWidth = 2;
+            context.stroke();
+            context.lineJoin = "round";
+            context.lineWidth = 4;
+            context.strokeStyle = colors.paper;
+            context.strokeText(tag, end.at.x, end.at.y - ring - 3);
+            context.fillStyle = colors.ink;
+            context.fillText(tag, end.at.x, end.at.y - ring - 3);
         }
 
         const selected = app.selection?.kind === "point" ? app.selection.name : null;

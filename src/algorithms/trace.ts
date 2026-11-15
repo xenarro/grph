@@ -37,6 +37,8 @@ export interface TraceList {
     readonly items: readonly string[];
     // true when new items go to the front, so the newest item is the first one
     readonly newestFirst: boolean;
+    // the end that matters when a long list is cut short: the newest items, or the next ones out of a queue
+    readonly keep: "front" | "back";
 }
 
 // One step of a trace. The marks, labels and lists show the state at this step. They are live views
@@ -62,6 +64,12 @@ export function edgeKey(from: string, to: string, directed: boolean): string {
 
 type MapName = "points" | "edges" | "labels";
 
+interface ListShape {
+    readonly name: string;
+    readonly newestFirst: boolean;
+    readonly keep: "front" | "back";
+}
+
 type Change =
     | { readonly kind: "set"; readonly map: MapName; readonly key: string; readonly before?: string; readonly after: string }
     | { readonly kind: "add"; readonly list: string; readonly item: string }
@@ -80,7 +88,7 @@ interface RecordedStep {
 class State {
     readonly maps: Record<MapName, Map<string, string>> = { points: new Map(), edges: new Map(), labels: new Map() };
     // items are kept in the order they were added; a newest-first list is turned around when shown
-    readonly lists = new Map<string, { stored: string[]; newestFirst: boolean }>();
+    readonly lists = new Map<string, { stored: string[]; newestFirst: boolean; keep: "front" | "back" }>();
 
     apply(change: Change): void {
         if (change.kind === "set") {
@@ -114,7 +122,7 @@ class State {
         }
     }
 
-    list(name: string): { stored: string[]; newestFirst: boolean } {
+    list(name: string): { stored: string[]; newestFirst: boolean; keep: "front" | "back" } {
         const list = this.lists.get(name);
         if (!list) {
             throw new Error(`Trace list ${name} was not created`);
@@ -129,9 +137,9 @@ export class Trace {
     // the step the state shows; -1 is before the first step
     private position = -1;
 
-    constructor(steps: readonly RecordedStep[], lists: readonly { name: string; newestFirst: boolean }[]) {
+    constructor(steps: readonly RecordedStep[], lists: readonly ListShape[]) {
         this.steps = steps;
-        lists.forEach(({ name, newestFirst }) => this.state.lists.set(name, { stored: [], newestFirst }));
+        lists.forEach(({ name, newestFirst, keep }) => this.state.lists.set(name, { stored: [], newestFirst, keep }));
     }
 
     get length(): number {
@@ -165,9 +173,10 @@ export class Trace {
             points: maps.points as ReadonlyMap<string, PointMark>,
             edges: maps.edges as ReadonlyMap<string, EdgeMark>,
             labels: maps.labels,
-            lists: [...lists].map(([name, { stored, newestFirst }]) => ({
+            lists: [...lists].map(([name, { stored, newestFirst, keep }]) => ({
                 name,
                 newestFirst,
+                keep,
                 get items() {
                     return newestFirst ? [...stored].reverse() : stored;
                 },
@@ -179,7 +188,7 @@ export class Trace {
 export class Tracer {
     private readonly steps: RecordedStep[] = [];
     private readonly state = new State();
-    private readonly lists: { name: string; newestFirst: boolean }[] = [];
+    private readonly lists: ListShape[] = [];
     private changes: Change[] = [];
     // past maxSteps: how many steps went into the last one, its latest message,
     // and where each key's combined change is in `changes`
@@ -207,12 +216,15 @@ export class Tracer {
 
     // Creates an empty list. Lists are shown in the order they are created.
     // A newest-first list gets its items at the front, like the order of a topological sort.
-    list(name: string, { newestFirst = false } = {}): this {
+    // `keep` is the end shown when the list is too long to show whole: by default the newest items,
+    // "front" for a queue, whose next items out matter most.
+    list(name: string, { newestFirst = false, keep }: { newestFirst?: boolean; keep?: "front" | "back" } = {}): this {
         if (this.state.lists.has(name)) {
             throw new Error(`Trace list ${name} already exists`);
         }
-        this.state.lists.set(name, { stored: [], newestFirst });
-        this.lists.push({ name, newestFirst });
+        const shape = { name, newestFirst, keep: keep ?? (newestFirst ? "front" : "back") };
+        this.state.lists.set(name, { stored: [], newestFirst, keep: shape.keep });
+        this.lists.push(shape);
         return this;
     }
 

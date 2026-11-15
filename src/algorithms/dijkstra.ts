@@ -88,7 +88,7 @@ const dijkstra = (graph: Graph, start: string, target?: string): DijkstraResult 
         tracer.insert("Queue", index, `${name}: ${format(distance)}`);
     };
 
-    tracer.list("Queue").list("Finished");
+    tracer.list("Queue", { keep: "front" }).list("Finished");
     distances.set(start, 0);
     tracer.markPoint(start, "active").label(start, "0");
     enqueue(start, 0);
