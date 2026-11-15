@@ -294,3 +294,233 @@ input[type="number"] {
         padding: 12px 16px;
     }
 }
+
+/* ---------- drawing */
+
+.board {
+    display: flex;
+    flex-direction: column;
+}
+
+#canvas {
+    display: block;
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: crosshair;
+}
+
+#canvas.dragging,
+#canvas.dragging .point {
+    cursor: grabbing;
+}
+
+.grid-line {
+    fill: none;
+    stroke: var(--grid);
+    stroke-width: 1;
+}
+
+.grid-line.strong {
+    stroke: var(--grid-strong);
+}
+
+.empty-hint {
+    font: 18px var(--font-ui);
+    fill: var(--pencil);
+    text-anchor: middle;
+    pointer-events: none;
+}
+
+.edge {
+    cursor: pointer;
+}
+
+.edge-line {
+    fill: none;
+    stroke: var(--pencil);
+    stroke-width: 2;
+}
+
+.edge-hit {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 16;
+}
+
+.edge.mark-tree .edge-line {
+    stroke: var(--ink);
+    stroke-width: 3.5;
+}
+
+.edge.mark-skipped .edge-line {
+    stroke-dasharray: 6 5;
+}
+
+.edge.mark-result .edge-line {
+    stroke: var(--blue);
+    stroke-width: 4;
+}
+
+.edge.mark-error .edge-line {
+    stroke: var(--red);
+    stroke-width: 4;
+}
+
+.edge-highlight {
+    fill: none;
+    stroke: var(--highlighter);
+    stroke-width: 18;
+    stroke-linecap: round;
+}
+
+.edge-selection {
+    fill: none;
+    stroke: var(--pencil);
+    stroke-width: 12;
+    stroke-linecap: round;
+    opacity: 0.3;
+}
+
+.arrow-plain,
+.arrow-skipped {
+    fill: var(--pencil);
+}
+
+.arrow-tree {
+    fill: var(--ink);
+}
+
+.arrow-result {
+    fill: var(--blue);
+}
+
+.arrow-error {
+    fill: var(--red);
+}
+
+.edge-weight {
+    font: 500 14px var(--font-ui);
+    fill: var(--ink);
+    text-anchor: middle;
+    dominant-baseline: central;
+    paint-order: stroke;
+    stroke: var(--paper);
+    stroke-width: 5px;
+    stroke-linejoin: round;
+    pointer-events: none;
+}
+
+.point {
+    cursor: grab;
+}
+
+.point-body {
+    fill: var(--node);
+    stroke: var(--ink);
+    stroke-width: 2;
+}
+
+.point-name {
+    font: italic 19px var(--font-math);
+    fill: var(--ink);
+    text-anchor: middle;
+    pointer-events: none;
+}
+
+.point.mark-active .point-body {
+    fill: var(--gray);
+}
+
+.point.mark-done .point-body {
+    fill: var(--ink);
+}
+
+.point.mark-done .point-name {
+    fill: var(--paper);
+}
+
+.point.mark-current .point-body {
+    fill: var(--highlighter);
+    stroke-width: 3;
+}
+
+.point.mark-current .point-name {
+    fill: var(--on-highlighter);
+}
+
+.point.mark-result .point-body {
+    fill: var(--blue);
+    stroke: var(--blue);
+}
+
+.point.mark-error .point-body {
+    fill: var(--red);
+    stroke: var(--red);
+}
+
+.point.mark-result .point-name,
+.point.mark-error .point-name {
+    fill: var(--on-pen);
+}
+
+.point-highlight {
+    fill: var(--highlighter);
+}
+
+.point-selection {
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 4;
+}
+
+.point-label circle {
+    fill: var(--paper-raised);
+    stroke: var(--ink);
+    stroke-width: 1;
+}
+
+.point-label text {
+    font: 600 11px var(--font-ui);
+    fill: var(--ink);
+    text-anchor: middle;
+}
+
+/* ---------- inspector */
+
+.inspector {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    min-height: 56px;
+    padding: 10px 20px;
+    border-top: 1px solid var(--rule);
+}
+
+.inspector p {
+    margin: 0;
+}
+
+.hint {
+    color: var(--pencil);
+}
+
+.error {
+    color: var(--red);
+}
+
+.error:empty {
+    display: none;
+}
+
+.math,
+.math em,
+em.math {
+    font-family: var(--font-math);
+    font-size: 1.12em;
+}
