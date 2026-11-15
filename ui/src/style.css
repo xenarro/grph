@@ -391,6 +391,142 @@ em.math {
     background: var(--paper-raised);
 }
 
+.structure-views {
+    display: flex;
+    flex-direction: column;
+    gap: 34px;
+}
+
+/* ---------- how the chosen algorithm works */
+
+.explainer-box {
+    padding: 14px 18px 18px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--paper);
+}
+
+.explainer-box > summary {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.explainer-box > summary::-webkit-details-marker {
+    display: none;
+}
+
+.explainer-box > summary::after {
+    content: "Show";
+    color: var(--pencil);
+    font-size: 13px;
+}
+
+.explainer-box[open] > summary::after {
+    content: "Hide";
+}
+
+.explainer-kicker {
+    color: var(--pencil);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.explainer-box h2 {
+    margin: 0;
+    font: 600 22px/1.2 var(--font-math);
+}
+
+.explainer-question {
+    max-width: 62ch;
+    margin: 12px 0 4px;
+    font: italic 19px/1.35 var(--font-math);
+}
+
+.explainer-section {
+    max-width: 66ch;
+}
+
+.explainer-section h3 {
+    margin: 18px 0 6px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.explainer-section p,
+.explainer-section li {
+    margin: 0 0 8px;
+    line-height: 1.55;
+}
+
+.explainer-section ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.explainer-note {
+    color: var(--pencil);
+    font-size: 13px;
+}
+
+.explainer-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0 24px;
+}
+
+.explainer code,
+.pseudocode,
+.code {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.explainer p code,
+.explainer li code {
+    padding: 0 4px;
+    border-radius: 3px;
+    background: var(--paper-raised);
+    font-size: 0.9em;
+}
+
+.pseudocode,
+.code {
+    margin: 0 0 8px;
+    padding: 10px 0;
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--paper-raised);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.pseudocode .line {
+    display: block;
+    padding: 0 12px;
+    white-space: pre;
+}
+
+/* the line of the step on display */
+.pseudocode .line.current {
+    background: var(--highlighter);
+    color: var(--on-highlighter);
+}
+
+.code code {
+    display: block;
+    padding: 0 12px;
+    white-space: pre;
+}
+
+.code .comment {
+    color: var(--pencil);
+}
+
 .structure-head {
     display: flex;
     flex-wrap: wrap;

@@ -96,14 +96,14 @@ export function mountPlayer(root: HTMLElement, app: App): void {
         target.fill(points, app.target ?? "");
     };
 
-    // The start or target was chosen on a point in the drawing: show it here. A run with other
-    // points is out of date, and an algorithm without a target gives way to the shortest path.
-    const showChosenPoints = () => {
+    // The start, target or algorithm was chosen elsewhere, for example on a point in the drawing:
+    // show it here. A run with other points or another algorithm is out of date.
+    const showChoices = () => {
         const changed = start.value() !== (app.start ?? "") || target.value() !== (app.target ?? "");
         start.setValue(app.start ?? "");
         target.setValue(app.target ?? "");
-        if (app.target !== null && selected().target === "none") {
-            algorithm.value = "dijkstra";
+        if (algorithm.value !== app.algorithm) {
+            algorithm.value = app.algorithm;
             clearRun();
         } else if (changed && steps) {
             clearRun("The start or target changed. Run the algorithm again.");
@@ -213,7 +213,10 @@ export function mountPlayer(root: HTMLElement, app: App): void {
     last.addEventListener("click", () => { stop(); show(Infinity); });
     slider.addEventListener("input", () => { stop(); show(Number(slider.value)); });
 
-    algorithm.addEventListener("change", () => clearRun());
+    algorithm.addEventListener("change", () => {
+        app.setAlgorithm(algorithm.value);
+        clearRun();
+    });
     // a typed name that is not a point is not taken: the field goes back to the chosen point
     const missing = (name: string) => name !== "" && !app.model.list.hasPoint(name) ? `There is no point ${name}.` : "";
     start.onChange(() => {
@@ -256,10 +259,11 @@ export function mountPlayer(root: HTMLElement, app: App): void {
             fillReadFromOptions();
             clearRun(steps ? "The graph changed. Run the algorithm again." : "");
         } else if (change === "view") {
-            showChosenPoints();
+            showChoices();
         }
     });
 
+    algorithm.value = app.algorithm;
     fillPointOptions();
     fillReadFromOptions();
     render();

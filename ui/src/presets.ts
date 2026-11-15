@@ -33,6 +33,21 @@ export const presets: Preset[] = [
         },
     },
     {
+        // the path with the fewest edges is not the lightest: breadth-first search and Dijkstra's algorithm disagree
+        id: "detour",
+        name: "Detour",
+        data: {
+            directed: false,
+            points: [
+                { name: "A", x: 110, y: 330 },
+                { name: "B", x: 270, y: 130 },
+                { name: "C", x: 530, y: 130 },
+                { name: "D", x: 690, y: 330 },
+            ],
+            edges: [edge("A", "D", 9), edge("A", "B", 2), edge("B", "C", 2), edge("C", "D", 2)],
+        },
+    },
+    {
         id: "tree",
         name: "Binary tree",
         data: {

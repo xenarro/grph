@@ -192,4 +192,15 @@ describe("App", () => {
         expect(app.selection).toBeNull();
         expect([app.start, app.target]).toEqual([second, third]);
     });
+
+    it("remembers the chosen algorithm, and choosing a target turns topological sort into the shortest path", () => {
+        const app = new App();
+        app.loadExample(presets[0].id);
+        expect(app.algorithm).toBe("dfs");
+        app.setAlgorithm("topological-sort");
+        expect(app.algorithm).toBe("topological-sort");
+        app.chooseTarget(app.model.points()[2]);
+        expect(app.algorithm).toBe("dijkstra");
+        expect(() => app.setAlgorithm("nope")).toThrow(/Unknown algorithm/);
+    });
 });

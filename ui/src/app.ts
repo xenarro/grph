@@ -1,5 +1,6 @@
 // State shared by every part of the page: the graph, the selection and the algorithm step on display.
 
+import { algorithms, getAlgorithm } from "../../src/algorithms";
 import { edgeKey, Step } from "../../src/algorithms/trace";
 import { generate, randomSeed, Recipe } from "./generate";
 import { GraphData, GraphModel, GraphTooBigError, Limits, Position, RepresentationId } from "./model";
@@ -40,6 +41,8 @@ export class App {
     loads = 1;
     // the recipe of a generated graph, until the graph is edited
     recipe: Recipe | null = null;
+    // the algorithm chosen in the player, whose explanation is shown
+    algorithm: string = algorithms[0].id;
     // the point a search ends at, null for none; see `start` for where it begins
     target: string | null = null;
     private chosenStart: string | null = null;
@@ -250,14 +253,24 @@ export class App {
         this.emit("view");
     }
 
-    // null for no target; otherwise like chooseStart
+    // null for no target; otherwise like chooseStart. Choosing a target while the algorithm
+    // takes none switches to the shortest path.
     chooseTarget(name: string | null, deselect = false): void {
         if (name === null || this.model.list.hasPoint(name)) {
             this.target = name;
         }
+        if (this.target !== null && getAlgorithm(this.algorithm).target === "none") {
+            this.algorithm = "dijkstra";
+        }
         if (deselect) {
             this.selection = null;
         }
+        this.emit("view");
+    }
+
+    // throws for an id no algorithm has
+    setAlgorithm(id: string): void {
+        this.algorithm = getAlgorithm(id).id;
         this.emit("view");
     }
 
