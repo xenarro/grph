@@ -1,5 +1,5 @@
 const { Point, default: Graph } = require("../dist/graph/adjacency-matrix");
-const { dfs } = require("../dist/dfs");
+const { dfs } = require("../dist/algorithms/dfs");
 
 const graph = new Graph();
 
