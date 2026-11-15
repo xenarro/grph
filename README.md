@@ -19,14 +19,15 @@ npm install
 npm run dev     # then open the printed address, usually http://localhost:5173
 ```
 
-- **Build a graph.** Click empty paper to add a point. Drag a point to move it. Click a point and then another point to connect them. Click an edge to change its weight, and press Delete to remove the selected point or edge. Switch between undirected and directed edges, load one of the examples, or generate a random graph of 100 to 100,000 points. The examples include big graphs of 10,000 and 100,000 points: only their recipes are in the code, and each is generated when you choose it.
+- **Find your way.** The page has three parts: the visualizer, the converter and the docs. The header links to each, stays at the top while you scroll (on screens 1,000 pixels wide or more), and marks the part in view.
+- **Build a graph.** Click empty paper to add a point. Drag a point to move it. Click a point and then another point to connect them. Click an edge to change its weight, and press Delete to remove the selected point or edge. The bar right over the drawing switches between undirected and directed edges, loads one of the examples, generates a random graph of 100 to 100,000 points, or clears the graph. The examples include big graphs of 10,000 and 100,000 points: only their recipes are in the code, and each is generated when you choose it.
 - **Move around.** Scroll, pinch on a trackpad or use two fingers to zoom, and drag empty paper to move the view. **Fit** shows the whole graph. Points show their names when they are big enough on screen, and become dots when a whole big graph is in view.
 - **See how it is stored.** The adjacency matrix (and the flat array it is stored in), the adjacency list and the incidence matrix update on every edit. Each one shows how many cells or entries it uses. Clicking a point or edge in a structure selects it in the drawing.
-- **Read the docs.** Under the app, across the page, the docs explain the chosen algorithm and the three structures; **Docs ↓** in the header scrolls there.
+- **Read the docs.** Under the app, across the page, the docs explain the chosen algorithm and the three structures; **Docs** in the header scrolls there.
 - **Compare the structures.** In the docs, **Which structure for what** works out, for the graph on the page, the memory each structure takes and the work it does to check an edge, list a point's neighbors, add a point or an edge, and search the whole graph, with the least in each row highlighted.
 - **Find a shortest path.** Click a point and press **Start here**, click another and press **Target here**, then run **Shortest path (Dijkstra)** for the lightest path, or **Breadth-first search** for the one with the fewest edges. The path turns blue and every point shows its distance.
 - **Learn how it works.** The docs explain the chosen algorithm: what it is for, the idea, pseudocode, the same algorithm in TypeScript, what it costs in each structure, when to use it and when not, and what to try here. While it runs, the pseudocode line of the current step is highlighted. Each structure is explained there too: the idea, a small piece of TypeScript, and what it is good and not good for.
-- **Convert a graph you already have.** Under the app, **Convert a graph** (**Convert ↓** in the header) takes an edge list, adjacency list, adjacency matrix or incidence matrix, pasted as text or JSON or opened from a file, and writes it out as any of the four, as text, JSON or TypeScript. It works out the format itself, or you choose it. Nothing is drawn and nothing is sent anywhere. Everything pasted is checked first (see [Converting](#converting)), and each problem is reported with its line.
+- **Convert a graph you already have.** Under the app, **Convert a graph** (**Converter** in the header) takes an edge list, adjacency list, adjacency matrix or incidence matrix, pasted as text or JSON or opened from a file, and writes it out as any of the four, as text, JSON or TypeScript. It works out the format itself, or you choose it. Nothing is drawn and nothing is sent anywhere. Everything pasted is checked first (see [Converting](#converting)), and each problem is reported with its line.
 - **Read it in Ukrainian.** The language select at the top switches the explanations, descriptions and the converter to Ukrainian; buttons and step messages stay in English. The code examples are the same in both.
 - **Step through an algorithm.** Pick an algorithm, its start and target, and which representation it reads neighbours from, then press Run. You can step back and forward, play automatically, or use ← → and Space. Each step says what is happening. Points are coloured the way textbooks colour them: white = not reached, gray = reached, black = finished. A highlighter marks what the algorithm is reading, both in the drawing and in all three structures.
 
@@ -202,6 +203,8 @@ ui/                           the visualizer (Vite, no framework)
     ├── player.ts             running and replaying algorithms
     ├── converter.ts          "Convert a graph", under the app
     ├── converter-texts.ts    its words and problems in English and Ukrainian
+    ├── nav.ts                the header: links to the three parts, the language
+    ├── toolbar.ts            the bar over the drawing: edges, examples, random graphs
     ├── docs.ts               the docs under the app
     ├── explainer.ts          how the chosen algorithm works
     ├── explainers.ts         its text, pseudocode and TypeScript
