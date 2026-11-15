@@ -1,6 +1,7 @@
 // Graph-wide controls: kind of edges, examples, clearing.
 
 import { App } from "./app";
+import { converterTexts } from "./converter-texts";
 import { h } from "./dom";
 import { GENERATED_SIZES } from "./generate";
 import { Lang, LANGUAGES, texts } from "./i18n";
@@ -49,10 +50,11 @@ export function mountToolbar(root: HTMLElement, app: App): void {
         language.setAttribute("aria-label", texts[app.lang].explanationsLanguage);
     });
 
-    // the docs are under the app: the link scrolls there
+    // the converter and the docs are under the app: the links scroll there
+    const convert = h("a", { class: "docs-link", href: "#convert" }, [converterTexts[app.lang].link]);
     const docs = h("a", { class: "docs-link", href: "#docs" }, [texts[app.lang].docsLink]);
 
-    root.append(kind, example, random, clear, docs, language);
+    root.append(kind, example, random, clear, convert, docs, language);
 
     const update = () => {
         directed.checked = app.model.directed;
@@ -61,6 +63,7 @@ export function mountToolbar(root: HTMLElement, app: App): void {
     app.on(change => change === "graph" && update());
     app.on(change => {
         if (change === "view") {
+            convert.textContent = converterTexts[app.lang].link;
             docs.textContent = texts[app.lang].docsLink;
         }
     });

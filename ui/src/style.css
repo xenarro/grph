@@ -216,10 +216,17 @@ input[type="number"] {
     color: var(--pencil);
 }
 
-/* below 1400 pixels the subtitle gives its room to the controls, so the header stays one row high */
-@media (min-width: 1000px) and (max-width: 1399px) {
+/* below 1560 pixels the subtitle gives its room to the controls, so the header stays one row high
+   (the Ukrainian controls are the wider ones) */
+@media (min-width: 1000px) and (max-width: 1559px) {
     .brand p {
         display: none;
+    }
+}
+
+@media (min-width: 1000px) and (max-width: 1279px) {
+    .topbar {
+        column-gap: 20px;
     }
 }
 
@@ -523,10 +530,159 @@ html {
     }
 }
 
-.docs {
+.docs,
+.converter {
     padding: 36px 20px 56px;
     border-top: 1px solid var(--rule);
     background: var(--paper-raised);
+}
+
+.converter {
+    padding-bottom: 40px;
+}
+
+.converter h2 {
+    margin: 0 0 6px;
+    font: italic 600 30px/1.1 var(--font-math);
+}
+
+/* the graph pasted in and the graph written out, side by side where there is room; the rows are shared,
+   so the two text boxes line up even when one pane's controls wrap */
+.convert-panes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+    gap: 0 32px;
+}
+
+.convert-pane {
+    display: grid;
+    grid-row: span 3;
+    grid-template-rows: subgrid;
+    min-width: 0;
+}
+
+.pane-head,
+.pane-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+}
+
+.pane-head {
+    align-self: end;
+    padding-bottom: 8px;
+}
+
+.pane-foot {
+    align-content: start;
+    gap: 6px 8px;
+    padding: 8px 0 20px;
+}
+
+.pane-title {
+    margin-right: auto;
+    font-weight: 600;
+}
+
+.pane-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.pane-field input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--ink);
+}
+
+.convert-text {
+    box-sizing: border-box;
+    width: 100%;
+    height: 22em;
+    min-height: 8em;
+    padding: 10px 12px;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--paper);
+    color: var(--ink);
+    font: 13px/1.55 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    tab-size: 4;
+    resize: vertical;
+}
+
+.convert-text:not(:read-only) {
+    background: var(--node);
+}
+
+.convert-text::placeholder {
+    color: var(--pencil);
+    opacity: 0.8;
+}
+
+button.small {
+    min-height: 28px;
+    padding: 2px 10px;
+    font-size: 13px;
+}
+
+.convert-try,
+.convert-note {
+    color: var(--pencil);
+    font-size: 13px;
+}
+
+/* under the graph pasted in, which its problems are about */
+.convert-status {
+    flex-basis: 100%;
+    min-height: 1.5em;
+    margin-top: 8px;
+    font-size: 14px;
+}
+
+.convert-status p {
+    margin: 0 0 4px;
+}
+
+.convert-status.failed p {
+    font-weight: 600;
+}
+
+.convert-problems {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--red);
+}
+
+.convert-problems li {
+    margin-bottom: 2px;
+}
+
+.convert-help {
+    max-width: 90ch;
+    margin-top: 16px;
+    font-size: 14px;
+}
+
+.convert-help summary {
+    color: var(--pencil);
+    cursor: pointer;
+}
+
+.convert-help dl {
+    margin: 10px 0 0;
+}
+
+.convert-help dt {
+    font-weight: 600;
+}
+
+.convert-help dd {
+    margin: 0 0 10px;
+    line-height: 1.55;
 }
 
 .docs-head {
