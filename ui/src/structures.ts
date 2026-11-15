@@ -14,7 +14,6 @@ import { classes, h } from "./dom";
 import { GridMarks, GridPicture } from "./grid-picture";
 import { ListWindow } from "./list-window";
 import { MatrixId, RepresentationId } from "./model";
-import { comparisonView, structureExplainerView } from "./structure-guide";
 import { count, texts } from "./i18n";
 
 const TABLE = { points: 40, edges: 120 };
@@ -36,8 +35,6 @@ interface Views {
 
 export function mountStructures(root: HTMLElement, app: App): void {
     let flatArrayOpen = false;
-    // the structures whose "How it works" is open
-    const explained = new Set<RepresentationId>();
     let version = 0;
     const matrixPicture = new GridPicture();
     const incidencePicture = new GridPicture();
@@ -54,11 +51,10 @@ export function mountStructures(root: HTMLElement, app: App): void {
                     reading && h("span", { class: "reading-badge" }, [texts[app.lang].readingBadge]),
                 ]),
                 h("p", { class: "caption", lang: app.lang }, [texts[app.lang].caption(id, app.model.directed)]),
-                structureExplainerView(id, app.lang, explained.has(id), open => open ? explained.add(id) : explained.delete(id)),
                 ...view,
             ]);
         });
-        root.replaceChildren(comparisonView(app), ...sections);
+        root.replaceChildren(...sections);
         views.attached.forEach(attached => attached());
 
         const details = root.querySelector<HTMLDetailsElement>("details.flat");

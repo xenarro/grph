@@ -49,12 +49,20 @@ export function mountToolbar(root: HTMLElement, app: App): void {
         language.setAttribute("aria-label", texts[app.lang].explanationsLanguage);
     });
 
-    root.append(kind, example, random, clear, language);
+    // the docs are under the app: the link scrolls there
+    const docs = h("a", { class: "docs-link", href: "#docs" }, [texts[app.lang].docsLink]);
+
+    root.append(kind, example, random, clear, docs, language);
 
     const update = () => {
         directed.checked = app.model.directed;
         undirected.checked = !app.model.directed;
     };
     app.on(change => change === "graph" && update());
+    app.on(change => {
+        if (change === "view") {
+            docs.textContent = texts[app.lang].docsLink;
+        }
+    });
     update();
 }

@@ -216,6 +216,13 @@ input[type="number"] {
     color: var(--pencil);
 }
 
+/* below 1400 pixels the subtitle gives its room to the controls, so the header stays one row high */
+@media (min-width: 1000px) and (max-width: 1399px) {
+    .brand p {
+        display: none;
+    }
+}
+
 .toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -400,8 +407,10 @@ input[type="number"] {
     }
 }
 
-/* every structure keeps some room, also while the graph is empty */
+/* every structure keeps some room, also while the graph is empty, and never shrinks to fit the column
+   (a min-height turns off the flex item's own "not smaller than its content") */
 .structure {
+    flex: none;
     min-height: 180px;
 }
 
@@ -484,21 +493,14 @@ em.math {
     background: var(--highlighter-soft);
 }
 
-/* a structure's own "How it works", closed until opened */
+/* how each structure works, in the docs */
 .structure-explainer {
-    margin: 0 0 14px;
+    margin-top: 28px;
 }
 
-.structure-explainer > summary {
-    width: fit-content;
-    color: var(--ink);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.structure-explainer[open] > summary {
-    margin-bottom: 8px;
+.structure-explainer-title {
+    margin: 0 0 6px;
+    font: 600 20px/1.2 var(--font-math);
 }
 
 .structure-explainer p,
@@ -509,36 +511,62 @@ em.math {
 
 /* ---------- how the chosen algorithm works */
 
-.explainer-box {
-    padding: 14px 18px 18px;
+/* ---------- the docs under the app, across the page */
+
+html {
+    scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+}
+
+.docs {
+    padding: 36px 20px 56px;
+    border-top: 1px solid var(--rule);
+    background: var(--paper-raised);
+}
+
+.docs-head {
+    max-width: 75ch;
+    margin-bottom: 24px;
+}
+
+.docs-head h2 {
+    margin: 0 0 6px;
+    font: italic 600 30px/1.1 var(--font-math);
+}
+
+.docs-intro {
+    margin: 0;
+    color: var(--pencil);
+}
+
+/* two columns where there is room, the algorithm and the structures; one on narrow screens */
+.docs-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr));
+    gap: 28px 40px;
+    align-items: start;
+}
+
+.doc {
+    min-width: 0;
+    padding: 18px 22px 24px;
     border: 1px solid var(--rule);
     border-radius: 6px;
     background: var(--paper);
 }
 
-.explainer-box > summary {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    cursor: pointer;
-    list-style: none;
+.doc > h2 {
+    margin: 0;
+    font: 600 24px/1.2 var(--font-math);
 }
 
-.explainer-box > summary::-webkit-details-marker {
-    display: none;
-}
-
-.explainer-box > summary::after {
-    content: attr(data-show);
-    color: var(--pencil);
-    font-size: 13px;
-}
-
-.explainer-box[open] > summary::after {
-    content: attr(data-hide);
-}
-
-.explainer-kicker {
+.doc-kicker {
+    margin: 0 0 2px;
     color: var(--pencil);
     font-size: 13px;
     font-weight: 600;
@@ -546,9 +574,20 @@ em.math {
     text-transform: uppercase;
 }
 
-.explainer-box h2 {
+.doc .comparison {
+    min-height: 0;
+}
+
+.doc .comparison h2 {
     margin: 0;
-    font: 600 22px/1.2 var(--font-math);
+    font: 600 24px/1.2 var(--font-math);
+}
+
+.docs-link {
+    color: var(--ink);
+    font-weight: 500;
+    text-decoration: underline;
+    text-underline-offset: 3px;
 }
 
 .explainer-question {

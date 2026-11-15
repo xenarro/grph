@@ -1,5 +1,5 @@
 // Which structure for what: the cost of everyday operations in each structure, worked out for the
-// graph on the page, and each structure's own "How it works" with a piece of code.
+// graph on the page, and how each structure works, with a piece of code. Both are in the docs.
 
 import { App } from "./app";
 import { classes, h } from "./dom";
@@ -84,12 +84,12 @@ export function comparisonView(app: App): HTMLElement {
     ]);
 }
 
-// "How it works" for one structure, closed until opened; `toggled` remembers the choice between renders
-export function structureExplainerView(id: RepresentationId, lang: Lang, open: boolean, toggled: (open: boolean) => void): HTMLElement {
+// how one structure works: the idea, its TypeScript, and what it is good and not good for
+export function structureExplainerView(id: RepresentationId, lang: Lang): HTMLElement {
     const explainer = structureExplainers[lang][id];
     const t = texts[lang];
-    const details = h("details", { class: "explainer structure-explainer", open, lang }, [
-        h("summary", {}, [t.howItWorks]),
+    return h("section", { class: "explainer structure-explainer", lang }, [
+        h("h3", { class: "structure-explainer-title" }, [t.structureNames[id]]),
         ...explainer.idea.map(paragraph),
         section(t.inTypeScript, [typescript(structureCode[id])]),
         h("div", { class: "explainer-columns" }, [
@@ -97,6 +97,6 @@ export function structureExplainerView(id: RepresentationId, lang: Lang, open: b
             section(t.notGoodFor, [bullets(explainer.badFor)]),
         ]),
     ]);
-    details.addEventListener("toggle", () => toggled(details.open));
-    return details;
 }
+
+export const STRUCTURES = ORDER;

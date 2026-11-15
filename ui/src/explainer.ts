@@ -1,13 +1,11 @@
-// "How it works" for the algorithm chosen in the player: what it is for, the idea, pseudocode
-// and TypeScript, what it costs, when to use it, and how to try it here. During a run the
+// How the algorithm chosen in the player works, in the docs under the app: what it is for, the idea,
+// pseudocode and TypeScript, what it costs, when to use it, and how to try it here. During a run the
 // pseudocode line of the current step is highlighted, so each step can be matched to the code.
 
 import { App } from "./app";
 import { h } from "./dom";
 import { algorithmCode, Explainer, explainers } from "./explainers";
 import { Texts, texts } from "./i18n";
-
-const OPEN_KEY = "grph:explainer-open";
 
 export function mountExplainer(root: HTMLElement, app: App): void {
     // what is on the page: the algorithm and the language
@@ -23,15 +21,12 @@ export function mountExplainer(root: HTMLElement, app: App): void {
             root.replaceChildren();
             return;
         }
-        const box = h("details", { class: "explainer-box", open: readOpen(), lang: app.lang }, [
-            h("summary", { "data-show": t.show, "data-hide": t.hide }, [
-                h("span", { class: "explainer-kicker" }, [t.howItWorks]),
-                h("h2", {}, [explainer.title]),
-            ]),
+        root.lang = app.lang;
+        root.replaceChildren(
+            h("p", { class: "doc-kicker" }, [t.theAlgorithm]),
+            h("h2", {}, [explainer.title]),
             ...content(explainer, algorithmCode[app.algorithm], t, lines),
-        ]);
-        box.addEventListener("toggle", () => saveOpen(box.open));
-        root.replaceChildren(box);
+        );
     };
 
     const highlight = () => {
@@ -100,21 +95,4 @@ export function typescript(code: string): HTMLElement {
             ? [line, "\n"]
             : [line.slice(0, comment), h("span", { class: "comment" }, [line.slice(comment)]), "\n"];
     }))]);
-}
-
-// open unless it was closed before; the browser may not allow storage
-function readOpen(): boolean {
-    try {
-        return localStorage.getItem(OPEN_KEY) !== "closed";
-    } catch {
-        return true;
-    }
-}
-
-function saveOpen(open: boolean): void {
-    try {
-        localStorage.setItem(OPEN_KEY, open ? "open" : "closed");
-    } catch {
-        // the choice just won't be remembered
-    }
 }

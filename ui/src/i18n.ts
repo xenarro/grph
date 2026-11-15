@@ -54,8 +54,13 @@ export function formatBytes(bytes: number, lang: Lang = "en"): string {
 type Matrix = Exclude<RepresentationId, "list">;
 
 export interface Texts {
-    // the language select
+    // the language select, and the docs under the app
     explanationsLanguage: string;
+    docsLink: string;
+    docsTitle: string;
+    docsIntro: string;
+    theAlgorithm: string;
+    theStructures: string;
     // "How it works"
     howItWorks: string;
     show: string;
@@ -127,6 +132,11 @@ export interface Texts {
 
 const en: Texts = {
     explanationsLanguage: "Language of the explanations",
+    docsLink: "Docs ↓",
+    docsTitle: "How it works",
+    docsIntro: "The algorithm chosen above and the three ways to store a graph, explained. While an algorithm runs above, the line of its pseudocode for the current step is highlighted here.",
+    theAlgorithm: "The algorithm",
+    theStructures: "The structures",
     howItWorks: "How it works",
     show: "Show",
     hide: "Hide",
@@ -233,6 +243,11 @@ const uk_ = (n: number, forms: { one: string; few?: string; many: string }) => `
 
 const uk: Texts = {
     explanationsLanguage: "Мова пояснень",
+    docsLink: "Документація ↓",
+    docsTitle: "Як це працює",
+    docsIntro: "Алгоритм, обраний угорі, і три способи зберігати граф — з поясненнями. Поки алгоритм працює вгорі, тут підсвічено рядок його псевдокоду для поточного кроку.",
+    theAlgorithm: "Алгоритм",
+    theStructures: "Структури",
     howItWorks: "Як це працює",
     show: "Показати",
     hide: "Сховати",
