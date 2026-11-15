@@ -17,6 +17,26 @@ npm run dev     # then open the printed address, usually http://localhost:5173
 
 The graph is saved in your browser, so it is still there after a reload.
 
+## Run with Docker
+
+You only need Docker; Node.js doesn't have to be installed.
+
+```sh
+docker compose up --build        # http://localhost:8080
+```
+
+This type-checks the code, runs the tests and builds the visualizer, then serves it with nginx. The image won't build if a check fails.
+
+```sh
+docker compose up --build dev    # http://localhost:5173, reloads when you edit files
+```
+
+This runs the Vite dev server on your local source files.
+
+Set `WEB_PORT` or `DEV_PORT` to use other ports, for example `WEB_PORT=3000 docker compose up --build`. Stop with Ctrl+C, or with `docker compose down` when the app runs in the background (`-d`). After changing dependencies, add `--renew-anon-volumes` to the dev command so the container installs them again.
+
+There is no separate backend: the graph library in `src/` is bundled into the visualizer and runs in the browser.
+
 ## Graph representations
 
 All three classes implement the same `Graph` interface (`src/graph/interfaces/graph.ts`):
