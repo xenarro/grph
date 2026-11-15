@@ -1,5 +1,6 @@
 // Example graphs to start from. Positions are in the 800 × 560 drawing area.
 
+import { Recipe } from "./generate";
 import { GraphData } from "./model";
 
 export interface Preset {
@@ -104,4 +105,17 @@ export const presets: Preset[] = [
             edges: [edge("A", "B"), edge("B", "C"), edge("C", "D"), edge("D", "B"), edge("A", "E"), edge("E", "D")],
         },
     },
+];
+
+// Big examples, to see how each structure copes with size. Only their recipes are here: the graph is
+// generated when the example is chosen, and it is the same graph every time.
+export interface BigExample {
+    id: string;
+    name: string;
+    recipe: Recipe;
+}
+
+export const bigExamples: BigExample[] = [
+    { id: "big-10k", name: "10,000 points", recipe: { points: 10_000, seed: 2026, directed: false } },
+    { id: "big-100k", name: "100,000 points", recipe: { points: 100_000, seed: 2026, directed: false } },
 ];

@@ -3,7 +3,7 @@
 import { edgeKey, Step } from "../../src/algorithms/trace";
 import { generate, randomSeed, Recipe } from "./generate";
 import { GraphData, GraphModel, GraphTooBigError, Limits, Position, RepresentationId } from "./model";
-import { presets } from "./presets";
+import { bigExamples, presets } from "./presets";
 
 const count = (n: number) => n.toLocaleString("en-US");
 
@@ -179,6 +179,17 @@ export class App {
             this.loads++;
         }
         this.emit("graph", null, true);
+    }
+
+    // a small example point by point, or a big one generated from its recipe
+    loadExample(id: string): void {
+        const preset = presets.find(p => p.id === id);
+        const big = bigExamples.find(b => b.id === id);
+        if (preset) {
+            this.load(preset.data);
+        } else if (big) {
+            this.load(generate(big.recipe), big.recipe);
+        }
     }
 
     // a random graph of this many points, with edges or arrows as the current graph has them

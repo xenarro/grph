@@ -134,4 +134,24 @@ describe("App", () => {
         expect(app.model.edgeCount()).toBe(before.edges.length);
         expect(app.loads).toBe(loads); // the view stays where it is
     });
+
+    it("generates a big example when it is chosen, and saves only its recipe", () => {
+        const app = new App();
+        app.loadExample("big-10k");
+        expect(app.model.pointCount()).toBe(10_000);
+        expect(app.model.matrix).toBeNull();
+        expect(JSON.parse(store.get(STORAGE_KEY)!)).toEqual({ recipe: { points: 10_000, seed: 2026, directed: false } });
+
+        // the same example is the same graph every time
+        const again = new App();
+        again.loadExample("big-10k");
+        expect(again.model.toData()).toEqual(app.model.toData());
+    });
+
+    it("loads a small example point by point", () => {
+        const app = new App();
+        app.loadExample(presets[1].id);
+        expect(app.model.points()).toEqual(presets[1].data.points.map(p => p.name));
+        expect(app.recipe).toBeNull();
+    });
 });

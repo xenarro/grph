@@ -3,7 +3,7 @@
 import { App } from "./app";
 import { h } from "./dom";
 import { GENERATED_SIZES } from "./generate";
-import { presets } from "./presets";
+import { bigExamples, presets } from "./presets";
 
 export function mountToolbar(root: HTMLElement, app: App): void {
     const undirected = h("input", { type: "radio", name: "edges", value: "undirected", id: "edges-undirected" });
@@ -19,12 +19,10 @@ export function mountToolbar(root: HTMLElement, app: App): void {
     const example = h("select", { "aria-label": "Load an example graph" }, [
         h("option", { value: "" }, ["Load an example…"]),
         ...presets.map(preset => h("option", { value: preset.id }, [preset.name])),
+        h("optgroup", { label: "Big graphs" }, bigExamples.map(big => h("option", { value: big.id }, [big.name]))),
     ]);
     example.addEventListener("change", () => {
-        const preset = presets.find(p => p.id === example.value);
-        if (preset) {
-            app.load(preset.data);
-        }
+        app.loadExample(example.value);
         example.value = "";
     });
 
