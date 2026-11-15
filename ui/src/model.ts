@@ -49,7 +49,9 @@ export type MatrixId = Exclude<RepresentationId, "list">;
 
 // Bytes one cell takes, measured in Chrome's JavaScript engine (V8): the adjacency matrix
 // is a Float64Array, the incidence matrix is an array of ordinary number arrays.
-const BYTES_PER_CELL: Record<MatrixId, number> = { matrix: 8, incidence: 12 };
+export const BYTES_PER_CELL: Record<MatrixId, number> = { matrix: 8, incidence: 12 };
+// and about this much for each list and each entry of the adjacency list, with its name and weight
+export const BYTES_PER_LIST_ITEM = 64;
 
 export interface StructureSize {
     cells: number;

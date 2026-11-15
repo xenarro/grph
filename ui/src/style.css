@@ -440,6 +440,73 @@ em.math {
     gap: 34px;
 }
 
+/* ---------- which structure for what */
+
+.comparison-table {
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.comparison-table th,
+.comparison-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--rule);
+    text-align: left;
+    vertical-align: top;
+}
+
+.comparison-table thead th {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.comparison-table tbody th {
+    color: var(--pencil);
+    font-weight: 500;
+}
+
+.comparison-table .amount {
+    display: block;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+}
+
+.comparison-table .how {
+    display: block;
+    color: var(--pencil);
+}
+
+.comparison-table td.least .amount {
+    font-weight: 700;
+}
+
+.comparison-table td.least {
+    background: var(--highlighter-soft);
+}
+
+/* a structure's own "How it works", closed until opened */
+.structure-explainer {
+    margin: 0 0 14px;
+}
+
+.structure-explainer > summary {
+    width: fit-content;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.structure-explainer[open] > summary {
+    margin-bottom: 8px;
+}
+
+.structure-explainer p,
+.structure-explainer li {
+    max-width: 66ch;
+    line-height: 1.55;
+}
+
 /* ---------- how the chosen algorithm works */
 
 .explainer-box {

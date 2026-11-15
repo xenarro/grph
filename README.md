@@ -19,7 +19,8 @@ npm run dev     # then open the printed address, usually http://localhost:5173
 
 - **Build a graph.** Click empty paper to add a point. Drag a point to move it. Click a point and then another point to connect them. Click an edge to change its weight, and press Delete to remove the selected point or edge. Switch between undirected and directed edges, load one of the examples, or generate a random graph of 100 to 100,000 points. The examples include big graphs of 10,000 and 100,000 points: only their recipes are in the code, and each is generated when you choose it.
 - **Move around.** Scroll, pinch on a trackpad or use two fingers to zoom, and drag empty paper to move the view. **Fit** shows the whole graph. Points show their names when they are big enough on screen, and become dots when a whole big graph is in view.
-- **See how it is stored.** The adjacency matrix (and the flat array it is stored in), the adjacency list and the incidence matrix update on every edit. Each one shows how many cells or entries it uses. Clicking a point or edge in a structure selects it in the drawing.
+- **See how it is stored.** The adjacency matrix (and the flat array it is stored in), the adjacency list and the incidence matrix update on every edit. Each one shows how many cells or entries it uses, and has its own **How it works**: the idea, a small piece of TypeScript, and what it is good and not good for. Clicking a point or edge in a structure selects it in the drawing.
+- **Compare the structures.** **Which structure for what** works out, for the graph on the page, the memory each structure takes and the work it does to check an edge, list a point's neighbors, add a point or an edge, and search the whole graph, with the least in each row highlighted.
 - **Find a shortest path.** Click a point and press **Start here**, click another and press **Target here**, then run **Shortest path (Dijkstra)** for the lightest path, or **Breadth-first search** for the one with the fewest edges. The path turns blue and every point shows its distance.
 - **Learn how it works.** Under **How it works**, the chosen algorithm is explained: what it is for, the idea, pseudocode, the same algorithm in TypeScript, what it costs in each structure, when to use it and when not, and what to try here. While it runs, the pseudocode line of the current step is highlighted.
 - **Step through an algorithm.** Pick an algorithm, its start and target, and which representation it reads neighbours from, then press Run. You can step back and forward, play automatically, or use ← → and Space. Each step says what is happening. Points are coloured the way textbooks colour them: white = not reached, gray = reached, black = finished. A highlighter marks what the algorithm is reading, both in the drawing and in all three structures.
@@ -163,6 +164,8 @@ ui/                           the visualizer (Vite, no framework)
     ├── model.ts              the list, and the matrices while the graph fits them
     ├── canvas.ts             drawing on a canvas, zooming and editing
     ├── structures.ts         the three structure views
+    ├── structure-guide.ts    "Which structure for what" and each structure's "How it works"
+    ├── structure-explainers.ts  their text and TypeScript
     ├── grid-picture.ts       a big matrix as a picture, a pixel per cell
     ├── list-window.ts        a big list, only the rows in view
     ├── player.ts             running and replaying algorithms

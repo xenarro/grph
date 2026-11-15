@@ -77,20 +77,20 @@ function content(explainer: Explainer, lines: { element: HTMLElement; steps: rea
     ];
 }
 
-function section(title: string, children: (HTMLElement | null)[]): HTMLElement {
+export function section(title: string, children: (HTMLElement | null)[]): HTMLElement {
     return h("section", { class: "explainer-section" }, [h("h3", {}, [title]), ...children]);
 }
 
-const paragraph = (text: string) => h("p", {}, inline(text));
-const bullets = (items: readonly string[]) => h("ul", {}, items.map(item => h("li", {}, inline(item))));
+export const paragraph = (text: string) => h("p", {}, inline(text));
+export const bullets = (items: readonly string[]) => h("ul", {}, items.map(item => h("li", {}, inline(item))));
 
 // text with `code` in backticks
-function inline(text: string): (string | HTMLElement)[] {
+export function inline(text: string): (string | HTMLElement)[] {
     return text.split("`").map((part, i) => i % 2 === 1 ? h("code", {}, [part]) : part);
 }
 
 // TypeScript with its comments set apart
-function typescript(code: string): HTMLElement {
+export function typescript(code: string): HTMLElement {
     return h("pre", { class: "code" }, [h("code", {}, code.split("\n").flatMap(line => {
         const comment = line.indexOf("//");
         return comment === -1

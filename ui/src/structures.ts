@@ -14,6 +14,8 @@ import { classes, h } from "./dom";
 import { GridMarks, GridPicture } from "./grid-picture";
 import { ListWindow } from "./list-window";
 import { MatrixId, RepresentationId, representationNames } from "./model";
+import { comparisonView, structureExplainerView } from "./structure-guide";
+import { count, formatBytes } from "./format";
 
 const TABLE = { points: 40, edges: 120 };
 const LIST_ROWS = 200;
@@ -34,6 +36,8 @@ interface Views {
 
 export function mountStructures(root: HTMLElement, app: App): void {
     let flatArrayOpen = false;
+    // the structures whose "How it works" is open
+    const explained = new Set<RepresentationId>();
     let version = 0;
     const matrixPicture = new GridPicture();
     const incidencePicture = new GridPicture();
@@ -50,10 +54,11 @@ export function mountStructures(root: HTMLElement, app: App): void {
                     reading && h("span", { class: "reading-badge" }, ["The algorithm reads this one"]),
                 ]),
                 h("p", { class: "caption" }, [caption(id, app.model.directed)]),
+                structureExplainerView(id, explained.has(id), open => open ? explained.add(id) : explained.delete(id)),
                 ...view,
             ]);
         });
-        root.replaceChildren(...sections);
+        root.replaceChildren(comparisonView(app), ...sections);
         views.attached.forEach(attached => attached());
 
         const details = root.querySelector<HTMLDetailsElement>("details.flat");
@@ -428,20 +433,6 @@ function tooBigNote(app: App, id: MatrixId): HTMLElement {
         `It would take ${formula}, about ${formatBytes(bytes)}. `,
         `The page builds it for graphs of up to ${limit}; the adjacency list holds the graph instead.`,
     ]);
-}
-
-const count = (n: number) => n.toLocaleString("en-US");
-
-// decimal units, as storage is usually sold: 1 MB = 1,000,000 bytes
-function formatBytes(bytes: number): string {
-    const units = ["bytes", "KB", "MB", "GB", "TB"];
-    let value = bytes;
-    let unit = 0;
-    while (value >= 1000 && unit < units.length - 1) {
-        value /= 1000;
-        unit++;
-    }
-    return `${unit === 0 || value >= 100 ? Math.round(value) : Number(value.toFixed(1))} ${units[unit]}`;
 }
 
 function emptyNote(): HTMLElement {
