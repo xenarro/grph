@@ -23,21 +23,21 @@ describe.each(representations)("dfs on %s", (_, create) => {
         const { order, path, steps } = dfs(square(create), "A");
         expect(order).toEqual(["A", "B", "D", "C"]);
         expect(path).toBeNull();
-        expect(steps[steps.length - 1].message).toBe("Done. Visiting order: A, B, D, C. Not reachable from A: E.");
+        expect(steps.at(-1).message).toBe("Done. Visiting order: A, B, D, C. Not reachable from A: E.");
     });
 
     it("marks tree and skipped edges", () => {
         const { steps } = dfs(square(create), "A");
-        const last = steps[steps.length - 1];
-        expect(last.edges).toEqual({
+        const last = steps.at(-1);
+        expect(Object.fromEntries(last.edges)).toEqual({
             [edgeKey("A", "B", false)]: "tree",
             [edgeKey("B", "D", false)]: "tree",
             [edgeKey("D", "C", false)]: "tree",
             [edgeKey("A", "C", false)]: "skipped",
         });
-        expect(last.points).toEqual({ A: "done", B: "done", C: "done", D: "done" });
-        expect(last.labels).toEqual({ A: "1", B: "2", D: "3", C: "4" });
-        expect(last.lists).toEqual([
+        expect(Object.fromEntries(last.points)).toEqual({ A: "done", B: "done", C: "done", D: "done" });
+        expect(Object.fromEntries(last.labels)).toEqual({ A: "1", B: "2", D: "3", C: "4" });
+        expect(last.lists.map(({ name, items }) => ({ name, items }))).toEqual([
             { name: "Stack", items: [] },
             { name: "Visited", items: ["A", "B", "D", "C"] },
         ]);
@@ -47,16 +47,16 @@ describe.each(representations)("dfs on %s", (_, create) => {
         const { order, path, steps } = dfs(square(create), "A", "C");
         expect(order).toEqual(["A", "B", "D", "C"]);
         expect(path).toEqual(["A", "B", "D", "C"]);
-        const last = steps[steps.length - 1];
+        const last = steps.at(-1);
         expect(last.message).toBe("Found C. The stack is the path: A → B → D → C.");
-        expect(last.edges[edgeKey("D", "C", false)]).toBe("result");
-        expect(last.points.A).toBe("result");
+        expect(last.edges.get(edgeKey("D", "C", false))).toBe("result");
+        expect(last.points.get("A")).toBe("result");
     });
 
     it("reports an unreachable target", () => {
         const { path, steps } = dfs(square(create), "A", "E");
         expect(path).toBeNull();
-        expect(steps[steps.length - 1].message).toMatch(/E cannot be reached from A/);
+        expect(steps.at(-1).message).toMatch(/E cannot be reached from A/);
     });
 
     it("follows edge directions", () => {

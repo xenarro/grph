@@ -25,14 +25,14 @@ describe.each(representations)("topologicalSort on %s", (_, create) => {
         expect(isTopologicalOrder(graph, order!)).toBe(true);
         expect(cycle).toBeNull();
 
-        const last = steps[steps.length - 1];
+        const last = steps.at(-1);
         expect(last.message).toBe("Done. Topological order: E, A, C, B, D. Every edge goes from an earlier point to a later one.");
-        expect(last.labels).toEqual({ E: "1", A: "2", C: "3", B: "4", D: "5" });
-        expect(last.lists).toEqual([
+        expect(Object.fromEntries(last.labels)).toEqual({ E: "1", A: "2", C: "3", B: "4", D: "5" });
+        expect(last.lists.map(({ name, items }) => ({ name, items }))).toEqual([
             { name: "Stack", items: [] },
             { name: "Order", items: ["E", "A", "C", "B", "D"] },
         ]);
-        expect(last.edges[edgeKey("C", "D", true)]).toBe("skipped");
+        expect(last.edges.get(edgeKey("C", "D", true))).toBe("skipped");
     });
 
     it("finds a cycle", () => {
@@ -42,10 +42,10 @@ describe.each(representations)("topologicalSort on %s", (_, create) => {
         expect(order).toBeNull();
         expect(cycle).toEqual(["A", "B", "C", "A"]);
 
-        const last = steps[steps.length - 1];
+        const last = steps.at(-1);
         expect(last.message).toBe("The graph has a cycle: A → B → C → A. A topological order does not exist.");
-        expect(last.edges[edgeKey("C", "A", true)]).toBe("error");
-        expect(last.points).toMatchObject({ A: "error", B: "error", C: "error" });
+        expect(last.edges.get(edgeKey("C", "A", true))).toBe("error");
+        expect(Object.fromEntries(last.points)).toMatchObject({ A: "error", B: "error", C: "error" });
     });
 
     it("needs a directed graph", () => {

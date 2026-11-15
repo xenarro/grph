@@ -956,6 +956,13 @@ button.play {
     border: 2px solid var(--ink);
 }
 
+.chips li.more {
+    border-style: dashed;
+    background: none;
+    color: var(--pencil);
+    font: 13px var(--font-ui);
+}
+
 .legend {
     display: flex;
     flex-wrap: wrap;

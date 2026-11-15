@@ -1,7 +1,7 @@
 // Runs an algorithm on the chosen representation and replays its steps.
 
 import { algorithms, getAlgorithm } from "../../src/algorithms";
-import { Step } from "../../src/algorithms/trace";
+import { Trace, TraceList } from "../../src/algorithms/trace";
 import { App } from "./app";
 import { classes, h } from "./dom";
 import { RepresentationId, representationNames } from "./model";
@@ -13,7 +13,7 @@ const SPEEDS = [
 ];
 
 export function mountPlayer(root: HTMLElement, app: App): void {
-    let steps: Step[] | null = null;
+    let steps: Trace | null = null;
     let index = 0;
     let timer: number | undefined;
     let note = "";
@@ -84,7 +84,7 @@ export function mountPlayer(root: HTMLElement, app: App): void {
             return;
         }
         index = Math.max(0, Math.min(steps.length - 1, i));
-        app.showStep(steps[index]);
+        app.showStep(steps.at(index));
         render();
     };
 
@@ -137,7 +137,7 @@ export function mountPlayer(root: HTMLElement, app: App): void {
         if (!steps) {
             return;
         }
-        const step = steps[index];
+        const step = steps.at(index);
         const atStart = index === 0;
         const atEnd = index === steps.length - 1;
         first.disabled = back.disabled = atStart;
@@ -150,7 +150,7 @@ export function mountPlayer(root: HTMLElement, app: App): void {
             h("span", { class: "trace-list-name" }, [list.name]),
             list.items.length === 0
                 ? h("span", { class: "hint" }, ["empty"])
-                : h("ol", { class: classes({ chips: true, stack: list.name === "Stack" }) }, list.items.map(item => h("li", {}, [item]))),
+                : h("ol", { class: classes({ chips: true, stack: list.name === "Stack" }) }, chips(list)),
         ])));
     };
 
@@ -241,6 +241,20 @@ export function mountPlayer(root: HTMLElement, app: App): void {
     fillPointOptions();
     fillReadFromOptions();
     render();
+}
+
+// A list of a big graph can hold thousands of points: only the newest ones are shown as chips,
+// and one more chip says how many are left out.
+const MAX_CHIPS = 30;
+function chips({ items, newestFirst }: TraceList): HTMLElement[] {
+    const shown = newestFirst ? items.slice(0, MAX_CHIPS) : items.slice(-MAX_CHIPS);
+    const chips = shown.map(item => h("li", {}, [item]));
+    const hidden = items.length - shown.length;
+    if (hidden > 0) {
+        const more = h("li", { class: "more" }, [`… ${hidden.toLocaleString("en-US")} more`]);
+        newestFirst ? chips.push(more) : chips.unshift(more);
+    }
+    return chips;
 }
 
 function iconButton(label: string, path: string): HTMLButtonElement {

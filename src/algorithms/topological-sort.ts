@@ -10,17 +10,21 @@
 // A point is finished only after everything reachable from it is finished, so putting each
 // finished point at the front of the order gives a valid order. Reaching a point that is
 // still on the stack means the edge goes back into the current path: the graph has a cycle.
+//
+// Like dfs.ts, the search keeps its own stack instead of calling itself for every point,
+// so it works on graphs far deeper than the call stack.
 
 import Graph from "../graph/interfaces/graph";
+import Neighbor from "../graph/interfaces/neighbor";
 import { GraphError } from "../graph/validation";
-import { Step, Tracer } from "./trace";
+import { nameList, Trace, Tracer } from "./trace";
 
 export interface TopologicalSortResult {
     // null when the graph has a cycle
     readonly order: string[] | null;
     // the first cycle found, starting and ending with the same point, for example [A, B, C, A]
     readonly cycle: string[] | null;
-    readonly steps: Step[];
+    readonly steps: Trace;
 }
 
 const topologicalSort = (graph: Graph): TopologicalSortResult => {
@@ -29,52 +33,66 @@ const topologicalSort = (graph: Graph): TopologicalSortResult => {
     }
 
     const tracer = new Tracer(true);
-    const order: string[] = [];
-    const stack: string[] = [];
+    // finished points, the last finished first in the order: kept in finishing order and turned
+    // around at the end, because adding to the front of an array moves every item each time
+    const finishedOrder: string[] = [];
     const finished = new Set<string>();
+    // the points the search is inside, with the neighbors each one still has to check
+    const stack: { name: string; neighbors: Neighbor[]; next: number }[] = [];
+    const onStack = new Set<string>();
 
-    tracer.list("Stack", stack).list("Order", order);
+    tracer.list("Stack").list("Order", { newestFirst: true });
     tracer.step("Start topological sort: run a depth-first search from every point that is not visited yet.");
 
-    // returns the cycle when one is found
-    const visit = (name: string): string[] | null => {
+    const visit = (name: string): void => {
         const previous = stack[stack.length - 1];
         if (previous !== undefined) {
-            tracer.markPoint(previous, "active");
+            tracer.markPoint(previous.name, "active");
         }
-        stack.push(name);
-        tracer.markPoint(name, "current").list("Stack", stack);
+        stack.push({ name, neighbors: graph.getNeighbors(name), next: 0 });
+        onStack.add(name);
+        tracer.markPoint(name, "current").add("Stack", name);
         tracer.step(`Visit ${name} and read its neighbors.`, { point: name });
+    };
 
-        for (const { name: next } of graph.getNeighbors(name)) {
-            const focus = { point: name, edge: { from: name, to: next } };
-            const edge = `${name}→${next}`;
+    // runs a search from one point; returns the cycle when one is found
+    const search = (start: string): string[] | null => {
+        visit(start);
+        while (stack.length > 0) {
+            const current = stack[stack.length - 1];
+            const { name } = current;
 
-            if (stack.includes(next)) {
-                tracer.markEdge(name, next, "error").step(`Edge ${edge}: ${next} is still on the stack, so this edge closes a cycle.`, focus);
-                return [...stack.slice(stack.indexOf(next)), next];
-            }
-            if (finished.has(next)) {
-                tracer.markEdge(name, next, "skipped").step(`Edge ${edge}: ${next} is already in the order. Skip it.`, focus);
+            if (current.next < current.neighbors.length) {
+                const next = current.neighbors[current.next++].name;
+                const focus = { point: name, edge: { from: name, to: next } };
+                const edge = `${name}→${next}`;
+
+                if (onStack.has(next)) {
+                    tracer.markEdge(name, next, "error").step(`Edge ${edge}: ${next} is still on the stack, so this edge closes a cycle.`, focus);
+                    const names = stack.map(entry => entry.name);
+                    return [...names.slice(names.indexOf(next)), next];
+                }
+                if (finished.has(next)) {
+                    tracer.markEdge(name, next, "skipped").step(`Edge ${edge}: ${next} is already in the order. Skip it.`, focus);
+                    continue;
+                }
+                tracer.markEdge(name, next, "tree").step(`Edge ${edge}: ${next} is not visited yet. Go deeper, to ${next}.`, focus);
+                visit(next);
                 continue;
             }
 
-            tracer.markEdge(name, next, "tree").step(`Edge ${edge}: ${next} is not visited yet. Go deeper, to ${next}.`, focus);
-            const cycle = visit(next);
-            if (cycle) {
-                return cycle;
+            // everything reachable from the point is finished: it goes to the front of the order
+            stack.pop();
+            onStack.delete(name);
+            finished.add(name);
+            finishedOrder.push(name);
+            tracer.markPoint(name, "done").removeNewest("Stack").add("Order", name);
+            const back = stack[stack.length - 1];
+            if (back !== undefined) {
+                tracer.markPoint(back.name, "current");
             }
+            tracer.step(`Everything reachable from ${name} is already in the order, so ${name} goes to the front.`, { point: name });
         }
-
-        stack.pop();
-        finished.add(name);
-        order.unshift(name);
-        tracer.markPoint(name, "done").list("Stack", stack).list("Order", order);
-        const back = stack[stack.length - 1];
-        if (back !== undefined) {
-            tracer.markPoint(back, "current");
-        }
-        tracer.step(`Everything reachable from ${name} is already in the order, so ${name} goes to the front.`, { point: name });
         return null;
     };
 
@@ -84,7 +102,7 @@ const topologicalSort = (graph: Graph): TopologicalSortResult => {
         }
         tracer.step(`${name} is not visited yet. Start a depth-first search from ${name}.`, { point: name });
 
-        const cycle = visit(name);
+        const cycle = search(name);
         if (cycle) {
             cycle.forEach((point, i) => {
                 tracer.markPoint(point, "error");
@@ -92,14 +110,15 @@ const topologicalSort = (graph: Graph): TopologicalSortResult => {
                     tracer.markEdge(cycle[i - 1], point, "error");
                 }
             });
-            tracer.step(`The graph has a cycle: ${cycle.join(" → ")}. A topological order does not exist.`);
-            return { order: null, cycle, steps: tracer.steps };
+            tracer.step(`The graph has a cycle: ${nameList(cycle, " → ")}. A topological order does not exist.`);
+            return { order: null, cycle, steps: tracer.trace() };
         }
     }
 
+    const order = finishedOrder.reverse();
     order.forEach((name, i) => tracer.label(name, String(i + 1)));
-    tracer.step(`Done. Topological order: ${order.join(", ")}. Every edge goes from an earlier point to a later one.`);
-    return { order, cycle: null, steps: tracer.steps };
+    tracer.step(`Done. Topological order: ${nameList(order)}. Every edge goes from an earlier point to a later one.`);
+    return { order, cycle: null, steps: tracer.trace() };
 };
 
 export {

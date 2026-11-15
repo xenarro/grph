@@ -3,7 +3,7 @@
 // To add an algorithm: implement it with a Tracer and add an entry to ./index.ts.
 
 import Graph from "../graph/interfaces/graph";
-import { Step } from "./trace";
+import { Trace } from "./trace";
 
 export interface AlgorithmInput {
     readonly start?: string;
@@ -17,5 +17,5 @@ export interface Algorithm {
     readonly start: "required" | "none";
     readonly target: "optional" | "none";
     readonly directedOnly: boolean;
-    run(graph: Graph, input: AlgorithmInput): Step[];
+    run(graph: Graph, input: AlgorithmInput): Trace;
 }

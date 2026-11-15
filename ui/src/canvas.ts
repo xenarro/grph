@@ -152,7 +152,7 @@ function drawEdge(app: App, edge: Edge, showWeight: boolean): SVGGElement {
     const { model, step } = app;
     const directed = model.directed;
     const key = edgeKey(edge.from, edge.to, directed);
-    const mark = step?.edges[key];
+    const mark = step?.edges.get(key);
     const focus = step?.focus.edge;
     const focused = focus !== undefined && edgeKey(focus.from, focus.to, directed) === key;
     const selected = app.isSelectedEdge(edge.from, edge.to);
@@ -181,11 +181,11 @@ function drawPoint(app: App, name: string): SVGGElement {
     const { step } = app;
     const { x, y } = app.model.position(name);
     const r = pointRadius(name);
-    const mark = step?.points[name];
+    const mark = step?.points.get(name);
     // the highlighter ring marks a point the algorithm is reading that is not the current one
     const focused = step?.focus.point === name && mark !== "current";
     const selected = app.isSelectedPoint(name);
-    const label = step?.labels[name];
+    const label = step?.labels.get(name);
 
     return s("g", {
         class: classes({ point: true, [`mark-${mark}`]: mark !== undefined, selected }),
