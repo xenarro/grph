@@ -65,7 +65,9 @@ type MapName = "points" | "edges" | "labels";
 type Change =
     | { readonly kind: "set"; readonly map: MapName; readonly key: string; readonly before?: string; readonly after: string }
     | { readonly kind: "add"; readonly list: string; readonly item: string }
-    | { readonly kind: "remove"; readonly list: string; readonly item: string };
+    | { readonly kind: "remove"; readonly list: string; readonly item: string }
+    | { readonly kind: "insert"; readonly list: string; readonly index: number; readonly item: string }
+    | { readonly kind: "removeAt"; readonly list: string; readonly index: number; readonly item: string };
 
 interface RecordedStep {
     readonly message: string;
@@ -85,8 +87,12 @@ class State {
             this.maps[change.map].set(change.key, change.after);
         } else if (change.kind === "add") {
             this.list(change.list).stored.push(change.item);
-        } else {
+        } else if (change.kind === "remove") {
             this.list(change.list).stored.pop();
+        } else if (change.kind === "insert") {
+            this.list(change.list).stored.splice(change.index, 0, change.item);
+        } else {
+            this.list(change.list).stored.splice(change.index, 1);
         }
     }
 
@@ -99,8 +105,12 @@ class State {
             }
         } else if (change.kind === "add") {
             this.list(change.list).stored.pop();
-        } else {
+        } else if (change.kind === "remove") {
             this.list(change.list).stored.push(change.item);
+        } else if (change.kind === "insert") {
+            this.list(change.list).stored.splice(change.index, 1);
+        } else {
+            this.list(change.list).stored.splice(change.index, 0, change.item);
         }
     }
 
@@ -218,6 +228,24 @@ export class Tracer {
             throw new Error(`Trace list ${list} is empty`);
         }
         return this.record({ kind: "remove", list, item: stored[stored.length - 1] });
+    }
+
+    // puts an item at a position, counted from the front; for keeping a queue in order
+    insert(list: string, index: number, item: string): this {
+        const { stored, newestFirst } = this.state.list(list);
+        if (newestFirst || index < 0 || index > stored.length) {
+            throw new Error(`Can't insert at ${index} in trace list ${list}`);
+        }
+        return this.record({ kind: "insert", list, index, item });
+    }
+
+    // takes out the item at a position, counted from the front
+    removeAt(list: string, index: number): this {
+        const { stored, newestFirst } = this.state.list(list);
+        if (newestFirst || index < 0 || index >= stored.length) {
+            throw new Error(`Can't remove item ${index} of trace list ${list}`);
+        }
+        return this.record({ kind: "removeAt", list, index, item: stored[index] });
     }
 
     step(message: string, focus: Focus = {}): this {

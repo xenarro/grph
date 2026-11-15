@@ -71,6 +71,22 @@ describe("Tracer and Trace", () => {
         expect(copy(trace.at(1))).toMatchObject({ points: { A: "done" }, edges: {}, lists: [{ name: "Visited", items: ["A"] }] });
     });
 
+    it("inserts and removes items anywhere in a list, and undoes it", () => {
+        const trace = new Tracer(false).list("Queue")
+            .add("Queue", "B").add("Queue", "D").step("one")
+            .insert("Queue", 1, "C").insert("Queue", 0, "A").step("two")
+            .removeAt("Queue", 0).removeAt("Queue", 1).step("three")
+            .trace();
+        const items = (i: number) => [...trace.at(i).lists[0].items];
+        expect(items(0)).toEqual(["B", "D"]);
+        expect(items(1)).toEqual(["A", "B", "C", "D"]);
+        expect(items(2)).toEqual(["B", "D"]);
+        expect(items(1)).toEqual(["A", "B", "C", "D"]);
+        expect(items(0)).toEqual(["B", "D"]);
+        expect(() => new Tracer(false).list("Q").insert("Q", 1, "A")).toThrow(/Can't insert/);
+        expect(() => new Tracer(false).list("Q").removeAt("Q", 0)).toThrow(/Can't remove/);
+    });
+
     it("throws for a step that does not exist", () => {
         const trace = record();
         expect(() => trace.at(4)).toThrow(RangeError);
