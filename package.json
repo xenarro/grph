@@ -1,11 +1,15 @@
 {
   "name": "grph",
   "version": "1.0.0",
-  "description": "",
-  "main": "dfs.js",
+  "description": "Graph representations and algorithms in TypeScript, with a browser visualizer",
+  "main": "dist/index.js",
   "scripts": {
     "test": "vitest run",
-    "build": "tsc --pretty"
+    "build": "tsc --pretty",
+    "dev": "vite",
+    "build:ui": "tsc -p ui && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit && tsc -p ui"
   },
   "repository": {
     "type": "git",
@@ -23,5 +27,6 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vitest": "^5.1.0"
-  }
+  },
+  "types": "dist/index.d.ts"
 }
