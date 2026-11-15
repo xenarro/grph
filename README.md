@@ -119,7 +119,7 @@ Every representation follows the same rules:
 
 Each is built in about a second. Without `reserve()` the arrays grow with the graph, are copied each time, and can end up a third empty. The visualizer keeps the plain `AdjacencyList`, whose `Map` of arrays is easier to follow.
 
-The algorithms still record every step for the visualizer, and on a graph this big that costs far more than the list: a breadth-first search over the million points takes about 11 s, nearly all of it spent on the steps.
+The algorithms still record their steps for the visualizer: the first 100,000 one by one, then only what the last step needs. On a graph this big that costs more than the search itself: a breadth-first search over the million points takes about 6 s and up to 3 GB, where a bare search with no steps takes about 1 s.
 
 ## Algorithms
 
@@ -144,7 +144,7 @@ topologicalSort(tasks).order;   // ["shirt", "tie", "jacket"]
 - **Dijkstra's algorithm** (`src/algorithms/dijkstra.ts`) finds the lightest path from the start to every point. It keeps the reached points in a priority queue (a binary heap, `src/algorithms/priority-queue.ts`) and each round finishes the nearest one. With a target it stops there and returns the path and its total weight.
 - **Topological sort** (`src/algorithms/topological-sort.ts`) orders the points of a directed graph so that every edge goes forward. If the graph has a cycle, it returns that cycle instead, because then no such order exists.
 
-Each algorithm also returns `steps`, a `Trace`: `steps.at(i)` gives the point and edge marks at step i, its stack or result lists, and what it is reading. A step stores only what changed, with the old values, so the trace moves forwards and backwards by applying or undoing changes. The depth-first searches keep their own stack instead of calling themselves, so they work on graphs far deeper than JavaScript's call stack. To add an algorithm, record its steps with a `Tracer` (`src/algorithms/trace.ts`) and add it to the list in `src/algorithms/index.ts`. The visualizer picks it up from there.
+Each algorithm also returns `steps`, a `Trace`: `steps.at(i)` gives the point and edge marks at step i, its stack or result lists, and what it is reading. A step stores only what changed, with the old values, so the trace moves forwards and backwards by applying or undoing changes. The depth-first searches keep their own stack instead of calling themselves, so they work on graphs far deeper than JavaScript's call stack. To add an algorithm, record its steps with a `Tracer` (`src/algorithms/trace.ts`) and add it to the list in `src/algorithms/index.ts`. The visualizer picks it up from there. A step that repeats for every point or edge can take its message as a function, ``tracer.step(() => `Visit ${name}.`)``: past the first 100,000 steps only the last message is written, not millions nobody reads.
 
 ## Converting
 
