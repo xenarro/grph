@@ -69,7 +69,7 @@ There is no separate backend: the graph library in `src/` is bundled into the vi
 
 ## Graph representations
 
-All three classes implement the same `Graph` interface (`src/graph/interfaces/graph.ts`):
+All four classes implement the same `Graph` interface (`src/graph/interfaces/graph.ts`):
 
 ```ts
 interface Graph {
@@ -94,6 +94,7 @@ interface Graph {
 |---|---|---|
 | `AdjacencyMatrix` | A row and a column per point, in one flat `Float64Array`. Cell `[x][y]` holds the weight of edge x→y, or 0 | points² × 8 bytes |
 | `AdjacencyList` | A `Map` from each point to its neighbours and the edge weights | points + edge ends |
+| `CompactAdjacencyList` | The same lists packed into typed arrays, for big graphs: an edge end is the neighbour's number, the weight and the next entry of the list | 16 bytes × edge ends + names |
 | `IncidenceMatrix` | A row per point and a column per edge. Undirected: the weight in both rows. Directed: −weight where the edge leaves, +weight where it enters | points × edges |
 
 Every representation follows the same rules:
@@ -105,6 +106,20 @@ Every representation follows the same rules:
 - `addPoints` adds many points at once; a matrix grows once for all of them instead of once per point.
 - `convert(source, target)` copies a graph into another representation: `convert(list, new AdjacencyMatrix(list.directed))`.
 - `getNeighbors` returns neighbours in the order the structure stores them. A matrix row is read in point order, while a list is read in the order the edges were added. Because of this, a search can visit points in a different order depending on the representation.
+
+### Big graphs in code
+
+`CompactAdjacencyList` (`src/graph/compact-adjacency-list.ts`) reads exactly like `AdjacencyList`: the same points, neighbours and edges, in the same order. So the algorithms and `convert()` give the same results on it; it just takes less memory. Measured in Node 24 for a million points and three million edges, not counting the name strings themselves:
+
+| | Memory |
+|---|---|
+| `AdjacencyList` | 445 MB |
+| `CompactAdjacencyList` | 154 MB |
+| `CompactAdjacencyList` after `reserve(points, edges)` | 136 MB |
+
+Each is built in about a second. Without `reserve()` the arrays grow with the graph, are copied each time, and can end up a third empty. The visualizer keeps the plain `AdjacencyList`, whose `Map` of arrays is easier to follow.
+
+The algorithms still record every step for the visualizer, and on a graph this big that costs far more than the list: a breadth-first search over the million points takes about 11 s, nearly all of it spent on the steps.
 
 ## Algorithms
 
@@ -173,6 +188,7 @@ src/                          the library
 ├── graph/
 │   ├── adjacency-matrix.ts
 │   ├── adjacency-list.ts
+│   ├── compact-adjacency-list.ts the same list in typed arrays, for big graphs
 │   ├── incidence-matrix.ts
 │   ├── convert.ts            copies a graph into another representation
 │   ├── point.ts              a named point with its row/column index
