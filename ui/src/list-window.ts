@@ -14,7 +14,9 @@ export class ListWindow {
 
     // `row` makes the row of one point; it is called only for rows in view
     element(points: readonly string[], focus: string | undefined, row: (name: string) => HTMLElement): { element: HTMLElement; attached(): void } {
-        const rows = h("div", { class: "list-window-rows", style: `height: ${points.length * ROW_HEIGHT}px` });
+        // set through the style object, not a style attribute, which the Content-Security-Policy blocks
+        const rows = h("div", { class: "list-window-rows" });
+        rows.style.height = `${points.length * ROW_HEIGHT}px`;
         const box = h("div", { class: "list-window", role: "list" }, [rows]);
 
         const fill = () => {

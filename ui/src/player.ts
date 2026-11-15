@@ -3,7 +3,7 @@
 import { algorithms, getAlgorithm } from "../../src/algorithms";
 import { Trace, TraceList } from "../../src/algorithms/trace";
 import { App } from "./app";
-import { classes, h } from "./dom";
+import { classes, h, s } from "./dom";
 import { texts } from "./i18n";
 import { RepresentationId, representationNames } from "./model";
 
@@ -351,7 +351,6 @@ function chips({ items, keep }: TraceList): HTMLElement[] {
 }
 
 function iconButton(label: string, path: string): HTMLButtonElement {
-    const button = h("button", { type: "button", class: "icon", "aria-label": label, title: label });
-    button.innerHTML = `<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="${path}" fill="currentColor"/></svg>`;
-    return button;
+    const icon = s("svg", { viewBox: "0 0 20 20", width: 16, height: 16, "aria-hidden": "true" }, [s("path", { d: path, fill: "currentColor" })]);
+    return h("button", { type: "button", class: "icon", "aria-label": label, title: label }, [icon]);
 }
