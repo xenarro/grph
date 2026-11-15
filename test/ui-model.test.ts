@@ -17,12 +17,12 @@ describe("GraphModel", () => {
         }
     });
 
-    it("keeps points inside the drawing area", () => {
+    it("keeps a point anywhere on the paper, but not at a broken position", () => {
         const model = new GraphModel();
         model.addPoint("A", { x: -50, y: VIEW.height + 50 });
-        const { x, y } = model.position("A");
-        expect(x).toBeGreaterThan(0);
-        expect(y).toBeLessThan(VIEW.height);
+        expect(model.position("A")).toEqual({ x: -50, y: VIEW.height + 50 });
+        model.movePoint("A", { x: NaN, y: 3 });
+        expect(model.position("A")).toEqual({ x: VIEW.width / 2, y: 3 });
     });
 
     it("switches between undirected and directed edges", () => {

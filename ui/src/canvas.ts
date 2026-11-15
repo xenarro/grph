@@ -1,117 +1,570 @@
-// Draws the graph on graph paper and handles editing with the mouse, pen or touch:
-// - click empty paper: add a point
+// Draws the graph on graph paper with a 2D canvas, and handles editing and moving around:
+// - click empty paper: add a point; drag empty paper: move the view
 // - drag a point: move it
 // - click a point, then another point: connect them
 // - click an edge: select it
+// - wheel, trackpad pinch or two fingers: zoom around the pointer; the buttons zoom and fit the graph
 // - Delete or Backspace: remove the selection; Escape: clear it
+//
+// A canvas is one picture, so drawing 100,000 points costs pixels, not page elements: the SVG
+// it replaced made several elements for every point and edge. Only what is in view is drawn,
+// and how much detail depends on how big a point is on screen: circles with names when
+// zoomed in, small circles further out, and single dots when the whole of a big graph is in view.
 
 import { edgeKey } from "../../src/algorithms/trace";
 import Edge from "../../src/graph/interfaces/edge";
 import { App } from "./app";
-import { classes, isTyping, s } from "./dom";
+import { h, isTyping } from "./dom";
 import { Position, VIEW } from "./model";
-
-const EDGE_MARKS = ["plain", "tree", "skipped", "result", "error"] as const;
-const DRAG_THRESHOLD = 4;
 
 export const pointRadius = (name: string): number => Math.max(20, name.length * 4 + 8);
 
-export function mountCanvas(svg: SVGSVGElement, app: App): void {
-    svg.setAttribute("viewBox", `0 0 ${VIEW.width} ${VIEW.height}`);
-    svg.setAttribute("role", "application");
-    svg.setAttribute("aria-label", "Graph drawing. Click empty paper to add a point, drag a point to move it, click two points to connect them.");
+// how far a pointer may move before a press counts as a drag, in screen pixels
+const DRAG_THRESHOLD = 4;
+// extra reach around points and edges for fingers, in screen pixels
+const HIT_SLOP = 8;
+// zooming in past this scale spreads the points apart without making them any bigger
+const MAX_DRAW_SCALE = 2.5;
+const MAX_SCALE = 12;
 
-    const defs = s("defs", {}, [
-        s("pattern", { id: "grid-minor", width: 20, height: 20, patternUnits: "userSpaceOnUse" }, [
-            s("path", { d: "M 20 0 L 0 0 0 20", class: "grid-line" }),
-        ]),
-        s("pattern", { id: "grid", width: 100, height: 100, patternUnits: "userSpaceOnUse" }, [
-            s("rect", { width: 100, height: 100, fill: "url(#grid-minor)" }),
-            s("path", { d: "M 100 0 L 0 0 0 100", class: "grid-line strong" }),
-        ]),
-        ...EDGE_MARKS.map(mark =>
-            s("marker", {
-                id: `arrow-${mark}`, viewBox: "0 0 12 12", refX: 11, refY: 6,
-                markerWidth: 12, markerHeight: 12, markerUnits: "userSpaceOnUse", orient: "auto",
-            }, [s("path", { d: "M 0 0 L 12 6 L 0 12 z", class: `arrow arrow-${mark}` })])
-        ),
-    ]);
-    // the paper reaches past the drawing area so a wide or tall window shows no edges
-    const paper = s("rect", { x: -3000, y: -3000, width: VIEW.width + 6000, height: VIEW.height + 6000, fill: "url(#grid)" });
-    const edgeLayer = s("g");
-    const pointLayer = s("g");
-    const emptyHint = s("text", { x: VIEW.width / 2, y: VIEW.height / 2, class: "empty-hint" }, ["Click anywhere on the paper to add a point."]);
-    svg.append(defs, paper, edgeLayer, pointLayer, emptyHint);
+// The view: the drawing point at the top-left corner of the canvas, and screen pixels per drawing unit.
+interface Camera {
+    x: number;
+    y: number;
+    scale: number;
+}
 
-    const render = () => {
+type Detail = "full" | "small" | "dots";
+
+interface Colors {
+    paper: string; grid: string; gridStrong: string; ink: string; pencil: string; node: string; gray: string;
+    highlighter: string; onHighlighter: string; blue: string; red: string; onPen: string;
+    fontMath: string; fontUi: string;
+}
+
+// an edge as drawn in the last frame, in screen pixels, for hit testing
+interface DrawnEdge {
+    edge: Edge;
+    start: Position;
+    control: Position | null;
+    end: Position;
+}
+
+export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
+    const paper = canvas.parentElement!;
+    canvas.setAttribute("role", "application");
+    canvas.setAttribute("aria-label", "Graph drawing. Click empty paper to add a point, drag a point to move it, click two points to connect them, drag the paper to move around, and use the wheel or two fingers to zoom.");
+    const context = canvas.getContext("2d", { alpha: false })!;
+
+    let camera: Camera = { x: 0, y: 0, scale: 1 };
+    // true until the user zooms or moves the view: a resized canvas then fits the graph again
+    let fitted = true;
+    let width = 0;
+    let height = 0;
+    let colors = readColors();
+
+    // ---- what changes only with the graph, kept between frames
+
+    let points: string[] = [];
+    let edges: Edge[] = [];
+    let keys: string[] = [];        // edgeKey() of each edge, for its algorithm mark
+    let curved: boolean[] = [];     // two opposite directed edges are drawn as curves so both stay visible
+    let showWeights = false;
+    const index = new PointIndex();
+    let drawnEdges: DrawnEdge[] = [];
+    let seenLoads = -1;
+
+    const refreshGraph = () => {
         const { model } = app;
-        const edges = model.edges();
-        const showWeights = edges.some(edge => edge.weight !== 1);
-        edgeLayer.replaceChildren(...edges.map(edge => drawEdge(app, edge, showWeights)));
-        pointLayer.replaceChildren(...model.points().map(name => drawPoint(app, name)));
-        emptyHint.style.display = model.points().length ? "none" : "";
+        points = model.points();
+        edges = model.edges();
+        keys = edges.map(edge => edgeKey(edge.from, edge.to, model.directed));
+        curved = edges.map(edge => model.directed && model.hasEdge(edge.to, edge.from));
+        showWeights = edges.some(edge => edge.weight !== 1);
+        index.rebuild(points, name => model.position(name));
     };
-    app.on(render);
-    render();
+
+    // ---- camera
+
+    const toScreen = (p: Position): Position => ({ x: (p.x - camera.x) * camera.scale, y: (p.y - camera.y) * camera.scale });
+    const toWorld = (p: Position): Position => ({ x: p.x / camera.scale + camera.x, y: p.y / camera.scale + camera.y });
+
+    // the box the whole graph fits in: the drawing area of a small graph, or around all the points
+    const graphBox = () => {
+        let minX = 0, minY = 0, maxX = VIEW.width, maxY = VIEW.height;
+        for (const name of points) {
+            const { x, y } = app.model.position(name);
+            const r = pointRadius(name) + 16;
+            minX = Math.min(minX, x - r); minY = Math.min(minY, y - r);
+            maxX = Math.max(maxX, x + r); maxY = Math.max(maxY, y + r);
+        }
+        return { minX, minY, maxX, maxY };
+    };
+
+    const fitScale = (box: { minX: number; minY: number; maxX: number; maxY: number }) =>
+        Math.min(width / (box.maxX - box.minX), height / (box.maxY - box.minY)) || 1;
+
+    const minScale = () => Math.min(0.5, fitScale(graphBox()) / 4);
+
+    const fit = () => {
+        const box = graphBox();
+        const scale = fitScale(box);
+        camera = {
+            scale,
+            x: (box.minX + box.maxX) / 2 - width / 2 / scale,
+            y: (box.minY + box.maxY) / 2 - height / 2 / scale,
+        };
+        fitted = true;
+        schedule();
+    };
+
+    const zoomAt = (screen: Position, factor: number) => {
+        const scale = Math.min(MAX_SCALE, Math.max(minScale(), camera.scale * factor));
+        const world = toWorld(screen);
+        camera = { scale, x: world.x - screen.x / scale, y: world.y - screen.y / scale };
+        fitted = false;
+        schedule(true);
+    };
+
+    // ---- drawing
+
+    let frame = 0;
+    let lastFrameMs = 0;
+    // a copy of the last full frame, moved around while the view moves when drawing is slow
+    const snapshot = document.createElement("canvas");
+    let snapshotCamera: Camera | null = null;
+    let settleTimer: number | undefined;
+
+    // `moving` is true while the view is zooming or panning: a slow frame is then replaced by the snapshot
+    const schedule = (moving = false) => {
+        if (moving && lastFrameMs > 25 && snapshotCamera) {
+            window.clearTimeout(settleTimer);
+            settleTimer = window.setTimeout(() => schedule(), 140);
+            if (!frame) {
+                frame = requestAnimationFrame(drawSnapshot);
+            }
+            return;
+        }
+        if (frame) {
+            cancelAnimationFrame(frame);
+        }
+        frame = requestAnimationFrame(draw);
+    };
+
+    const drawSnapshot = () => {
+        frame = 0;
+        const from = snapshotCamera!;
+        const ratio = camera.scale / from.scale;
+        const dpr = window.devicePixelRatio || 1;
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+        context.fillStyle = colors.paper;
+        context.fillRect(0, 0, width, height);
+        drawGrid();
+        context.drawImage(snapshot,
+            (from.x - camera.x) * camera.scale, (from.y - camera.y) * camera.scale,
+            width * ratio, height * ratio);
+    };
+
+    const draw = () => {
+        frame = 0;
+        const started = performance.now();
+        const dpr = window.devicePixelRatio || 1;
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+        context.fillStyle = colors.paper;
+        context.fillRect(0, 0, width, height);
+        drawGrid();
+
+        const drawScale = Math.min(camera.scale, MAX_DRAW_SCALE);
+        const onScreen = 20 * drawScale; // the radius of a one-letter point, in pixels
+        const detail: Detail = onScreen >= 9 ? "full" : onScreen >= 2.5 ? "small" : "dots";
+
+        drawEdges(detail, drawScale);
+        drawPoints(detail, drawScale);
+
+        if (points.length === 0) {
+            context.font = `18px ${colors.fontUi}`;
+            context.fillStyle = colors.pencil;
+            context.textAlign = "center";
+            context.textBaseline = "middle";
+            context.fillText("Click anywhere on the paper to add a point.", width / 2, height / 2);
+        }
+
+        lastFrameMs = performance.now() - started;
+        if (lastFrameMs > 25) {
+            // only slow frames are worth keeping for moving the view; the copy itself is cheap
+            snapshot.width = canvas.width;
+            snapshot.height = canvas.height;
+            snapshot.getContext("2d")!.drawImage(canvas, 0, 0);
+            snapshotCamera = { ...camera };
+        }
+    };
+
+    // graph paper: thin lines every 20 units and stronger ones every 100, or wider apart when zoomed out
+    const drawGrid = () => {
+        let step = 20;
+        while (step * camera.scale < 9) {
+            step *= 5;
+        }
+        const left = Math.floor(camera.x / step) * step;
+        const top = Math.floor(camera.y / step) * step;
+        const right = camera.x + width / camera.scale;
+        const bottom = camera.y + height / camera.scale;
+        for (const strong of [false, true]) {
+            context.beginPath();
+            for (let x = left; x <= right; x += step) {
+                if (isStrong(x, step) === strong) {
+                    const sx = Math.round((x - camera.x) * camera.scale) + 0.5;
+                    context.moveTo(sx, 0);
+                    context.lineTo(sx, height);
+                }
+            }
+            for (let y = top; y <= bottom; y += step) {
+                if (isStrong(y, step) === strong) {
+                    const sy = Math.round((y - camera.y) * camera.scale) + 0.5;
+                    context.moveTo(0, sy);
+                    context.lineTo(width, sy);
+                }
+            }
+            context.strokeStyle = strong ? colors.gridStrong : colors.grid;
+            context.lineWidth = 1;
+            context.stroke();
+        }
+    };
+    const isStrong = (value: number, step: number) => Math.round(value / step) % 5 === 0;
+
+    const drawEdges = (detail: Detail, drawScale: number) => {
+        const { model, step } = app;
+        const directed = model.directed;
+        const focus = step?.focus.edge;
+        const focusKey = focus ? edgeKey(focus.from, focus.to, directed) : null;
+        const selected = app.selection?.kind === "edge" ? edgeKey(app.selection.from, app.selection.to, directed) : null;
+        const margin = 40 * drawScale;
+        const visible = (p: Position) => p.x > -margin && p.y > -margin && p.x < width + margin && p.y < height + margin;
+        const full = detail === "full";
+
+        // edges grouped by how they look, so each group is drawn in one go
+        const groups = new Map<string, DrawnEdge[]>();
+        const under: { drawn: DrawnEdge; kind: "highlight" | "selection" }[] = [];
+        const weights: { at: Position; weight: number }[] = [];
+        drawnEdges = [];
+
+        for (let i = 0; i < edges.length; i++) {
+            const edge = edges[i];
+            const a = toScreen(model.position(edge.from));
+            const b = toScreen(model.position(edge.to));
+            if (!visible(a) && !visible(b) && !crosses(a, b, width, height)) {
+                continue;
+            }
+            const drawn = edgeGeometry(edge, a, b,
+                full ? pointRadius(edge.from) * drawScale : 0,
+                full ? pointRadius(edge.to) * drawScale + 1 : 0,
+                curved[i] ? 34 * drawScale : 0);
+            drawnEdges.push(drawn);
+
+            const mark = step?.edges.get(keys[i]) ?? "plain";
+            const group = groups.get(mark) ?? [];
+            group.push(drawn);
+            groups.set(mark, group);
+            if (keys[i] === focusKey) {
+                under.push({ drawn, kind: "highlight" });
+            }
+            if (keys[i] === selected) {
+                under.push({ drawn, kind: "selection" });
+            }
+            if (full && showWeights) {
+                weights.push({ at: middleOf(drawn), weight: edge.weight });
+            }
+        }
+
+        // the highlighter under the edge being read, and the selection
+        context.lineCap = "round";
+        for (const { drawn, kind } of under) {
+            context.beginPath();
+            tracePath(context, drawn);
+            context.strokeStyle = kind === "highlight" ? colors.highlighter : colors.pencil;
+            context.globalAlpha = kind === "highlight" ? 1 : 0.3;
+            context.lineWidth = Math.max(kind === "highlight" ? 8 : 6, (kind === "highlight" ? 18 : 12) * drawScale);
+            context.stroke();
+        }
+        context.globalAlpha = 1;
+        context.lineCap = "butt";
+
+        for (const [mark, group] of groups) {
+            const look = EDGE_LOOK[mark as keyof typeof EDGE_LOOK];
+            const color = colors[look.color];
+            context.beginPath();
+            group.forEach(drawn => tracePath(context, drawn));
+            context.strokeStyle = color;
+            context.lineWidth = detail === "dots" ? 1 : Math.max(1, look.width * drawScale);
+            context.globalAlpha = detail === "dots" && (mark === "plain" || mark === "skipped") ? 0.35 : 1;
+            context.setLineDash(mark === "skipped" && detail !== "dots" ? [6 * drawScale, 5 * drawScale] : []);
+            context.stroke();
+            context.setLineDash([]);
+            context.globalAlpha = 1;
+
+            if (directed && detail !== "dots") {
+                context.beginPath();
+                group.forEach(drawn => traceArrow(context, drawn, 12 * drawScale));
+                context.fillStyle = color;
+                context.fill();
+            }
+        }
+
+        if (weights.length) {
+            context.font = `500 ${14 * drawScale}px ${colors.fontUi}`;
+            context.textAlign = "center";
+            context.textBaseline = "middle";
+            context.lineJoin = "round";
+            context.lineWidth = 5 * drawScale;
+            context.strokeStyle = colors.paper;
+            context.fillStyle = colors.ink;
+            for (const { at, weight } of weights) {
+                context.strokeText(String(weight), at.x, at.y);
+                context.fillText(String(weight), at.x, at.y);
+            }
+        }
+    };
+
+    const drawPoints = (detail: Detail, drawScale: number) => {
+        const { model, step } = app;
+        const margin = 60 * drawScale;
+        const shown: { name: string; at: Position; r: number; mark: PointLook }[] = [];
+        for (const name of points) {
+            const at = toScreen(model.position(name));
+            if (at.x < -margin || at.y < -margin || at.x > width + margin || at.y > height + margin) {
+                continue;
+            }
+            const r = detail === "dots" ? 1.5 : pointRadius(name) * drawScale;
+            shown.push({ name, at, r, mark: step?.points.get(name) ?? "plain" });
+        }
+
+        // the highlighter under a point the algorithm reads that is not the current one
+        const focusName = step?.focus.point;
+        for (const { name, at, r, mark } of shown) {
+            if (name === focusName && mark !== "current") {
+                context.beginPath();
+                context.arc(at.x, at.y, Math.max(r + 9 * drawScale, 6), 0, Math.PI * 2);
+                context.fillStyle = colors.highlighter;
+                context.fill();
+            }
+        }
+
+        if (detail === "dots") {
+            // one small square per point, grouped by colour
+            const byColor = new Map<string, Position[]>();
+            for (const { at, mark } of shown) {
+                const color = colors[POINT_LOOK[mark].dot];
+                const list = byColor.get(color) ?? [];
+                list.push(at);
+                byColor.set(color, list);
+            }
+            for (const [color, list] of byColor) {
+                context.fillStyle = color;
+                for (const at of list) {
+                    context.fillRect(Math.round(at.x) - 1, Math.round(at.y) - 1, 3, 3);
+                }
+            }
+        } else {
+            for (const { at, r, mark } of shown) {
+                const look = POINT_LOOK[mark];
+                context.beginPath();
+                context.arc(at.x, at.y, r, 0, Math.PI * 2);
+                context.fillStyle = colors[look.fill];
+                context.fill();
+                context.strokeStyle = colors[look.stroke];
+                context.lineWidth = detail === "full" ? (mark === "current" ? 3 : 2) * drawScale : 1;
+                context.stroke();
+            }
+        }
+
+        if (detail === "full") {
+            context.textAlign = "center";
+            context.textBaseline = "middle";
+            context.font = `italic ${19 * drawScale}px ${colors.fontMath}`;
+            for (const { name, at, mark } of shown) {
+                context.fillStyle = colors[POINT_LOOK[mark].text];
+                context.fillText(name, at.x, at.y + 1 * drawScale);
+            }
+            // the order an algorithm reached a point in, on a small badge
+            context.font = `600 ${11 * drawScale}px ${colors.fontUi}`;
+            for (const { name, at, r } of shown) {
+                const label = step?.labels.get(name);
+                if (label === undefined) {
+                    continue;
+                }
+                const bx = at.x + r * 0.75;
+                const by = at.y - r * 0.75;
+                context.beginPath();
+                context.arc(bx, by, 10 * drawScale, 0, Math.PI * 2);
+                context.fillStyle = colors.paper;
+                context.fill();
+                context.lineWidth = 1;
+                context.strokeStyle = colors.ink;
+                context.stroke();
+                context.fillStyle = colors.ink;
+                context.fillText(label, bx, by + 0.5 * drawScale);
+            }
+        }
+
+        const selected = app.selection?.kind === "point" ? app.selection.name : null;
+        const chosen = selected === null ? undefined : shown.find(p => p.name === selected);
+        if (chosen) {
+            context.beginPath();
+            context.arc(chosen.at.x, chosen.at.y, Math.max(chosen.r + 6 * drawScale, 7), 0, Math.PI * 2);
+            context.setLineDash([4, 4]);
+            context.strokeStyle = colors.ink;
+            context.lineWidth = 1.5;
+            context.stroke();
+            context.setLineDash([]);
+        }
+    };
+
+    // ---- hit testing
+
+    const pointAt = (screen: Position): string | null => {
+        const drawScale = Math.min(camera.scale, MAX_DRAW_SCALE);
+        const circles = 20 * drawScale >= 2.5;
+        const world = toWorld(screen);
+        const reach = (name: string) => ((circles ? pointRadius(name) * drawScale : 3) + HIT_SLOP) / camera.scale;
+        let best: string | null = null;
+        let bestDistance = Infinity;
+        for (const name of index.near(world, (60 * drawScale + HIT_SLOP) / camera.scale)) {
+            const p = app.model.position(name);
+            const distance = Math.hypot(p.x - world.x, p.y - world.y);
+            if (distance <= reach(name) && distance < bestDistance) {
+                best = name;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    };
+
+    // edges are found among the ones drawn in the last frame; with very many on screen they can't be picked
+    const edgeAt = (screen: Position): Edge | null => {
+        if (drawnEdges.length > 20000) {
+            return null;
+        }
+        let best: Edge | null = null;
+        let bestDistance = HIT_SLOP;
+        for (const drawn of drawnEdges) {
+            const distance = distanceToEdge(screen, drawn);
+            if (distance <= bestDistance) {
+                best = drawn.edge;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    };
 
     // ---- pointer input
 
     type Press =
         | { kind: "point"; name: string; start: Position; offset: Position; moved: boolean }
         | { kind: "edge"; from: string; to: string }
-        | { kind: "paper"; at: Position };
+        | { kind: "paper"; start: Position; from: Camera; moved: boolean };
     let press: Press | null = null;
+    const pointers = new Map<number, Position>();
+    let pinch: { distance: number; center: Position; from: Camera } | null = null;
 
-    const toDrawing = (event: PointerEvent): Position => {
-        const matrix = svg.getScreenCTM();
-        if (!matrix) {
-            return { x: 0, y: 0 };
-        }
-        const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
-        return { x: point.x, y: point.y };
+    const screenOf = (event: PointerEvent | WheelEvent): Position => {
+        const box = canvas.getBoundingClientRect();
+        return { x: event.clientX - box.left, y: event.clientY - box.top };
     };
 
-    svg.addEventListener("pointerdown", event => {
-        if (event.button !== 0) {
+    const pinchState = () => {
+        const [a, b] = [...pointers.values()];
+        return { distance: Math.hypot(b.x - a.x, b.y - a.y) || 1, center: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+    };
+
+    canvas.addEventListener("pointerdown", event => {
+        if (event.pointerType === "mouse" && event.button !== 0) {
             return;
         }
-        const at = toDrawing(event);
-        const target = event.target as Element;
-        const pointElement = target.closest<SVGGElement>("[data-point]");
-        const edgeElement = target.closest<SVGGElement>("[data-from]");
-
-        if (pointElement) {
-            const name = pointElement.dataset.point!;
-            const position = app.model.position(name);
-            press = { kind: "point", name, start: at, offset: { x: position.x - at.x, y: position.y - at.y }, moved: false };
-        } else if (edgeElement) {
-            press = { kind: "edge", from: edgeElement.dataset.from!, to: edgeElement.dataset.to! };
-        } else {
-            press = { kind: "paper", at };
-        }
-        svg.setPointerCapture(event.pointerId);
+        const at = screenOf(event);
+        pointers.set(event.pointerId, at);
+        canvas.setPointerCapture(event.pointerId);
+        canvas.style.cursor = "";
         event.preventDefault();
+
+        if (pointers.size === 2) {
+            // a second finger turns the press into a pinch
+            press = null;
+            canvas.classList.remove("dragging");
+            pinch = { ...pinchState(), from: { ...camera } };
+            return;
+        }
+        if (pointers.size > 2) {
+            return;
+        }
+
+        const name = pointAt(at);
+        if (name) {
+            const p = app.model.position(name);
+            const world = toWorld(at);
+            press = { kind: "point", name, start: at, offset: { x: p.x - world.x, y: p.y - world.y }, moved: false };
+            return;
+        }
+        const edge = edgeAt(at);
+        press = edge ? { kind: "edge", from: edge.from, to: edge.to } : { kind: "paper", start: at, from: { ...camera }, moved: false };
     });
 
-    svg.addEventListener("pointermove", event => {
-        if (press?.kind !== "point") {
+    canvas.addEventListener("pointermove", event => {
+        const at = screenOf(event);
+        if (!pointers.has(event.pointerId)) {
+            // hovering: show what a press would do
+            canvas.style.cursor = pointAt(at) ? "grab" : edgeAt(at) ? "pointer" : "";
             return;
         }
-        const at = toDrawing(event);
+        pointers.set(event.pointerId, at);
+
+        if (pinch && pointers.size === 2) {
+            const { distance, center } = pinchState();
+            const scale = Math.min(MAX_SCALE, Math.max(minScale(), pinch.from.scale * distance / pinch.distance));
+            // the drawing point under the fingers' first center follows the fingers
+            const world = { x: pinch.center.x / pinch.from.scale + pinch.from.x, y: pinch.center.y / pinch.from.scale + pinch.from.y };
+            camera = { scale, x: world.x - center.x / scale, y: world.y - center.y / scale };
+            fitted = false;
+            schedule(true);
+            return;
+        }
+        if (!press || press.kind === "edge") {
+            return;
+        }
         if (!press.moved && Math.hypot(at.x - press.start.x, at.y - press.start.y) > DRAG_THRESHOLD) {
             press.moved = true;
-            svg.classList.add("dragging");
+            canvas.classList.add("dragging");
         }
-        if (press.moved) {
-            app.movePoint(press.name, { x: at.x + press.offset.x, y: at.y + press.offset.y });
+        if (!press.moved) {
+            return;
+        }
+        if (press.kind === "point") {
+            const world = toWorld(at);
+            const position = { x: world.x + press.offset.x, y: world.y + press.offset.y };
+            index.move(press.name, app.model.position(press.name), position);
+            app.movePoint(press.name, position);
+        } else {
+            camera = {
+                ...press.from,
+                x: press.from.x - (at.x - press.start.x) / press.from.scale,
+                y: press.from.y - (at.y - press.start.y) / press.from.scale,
+            };
+            fitted = false;
+            schedule(true);
         }
     });
 
-    svg.addEventListener("pointerup", () => {
+    const release = (event: PointerEvent, cancelled: boolean) => {
+        pointers.delete(event.pointerId);
+        if (pinch) {
+            if (pointers.size < 2) {
+                pinch = null;
+            }
+            return;
+        }
         const released = press;
         press = null;
-        svg.classList.remove("dragging");
-        if (!released) {
+        canvas.classList.remove("dragging");
+        if (!released || cancelled) {
             return;
         }
         if (released.kind === "point") {
@@ -120,18 +573,25 @@ export function mountCanvas(svg: SVGSVGElement, app: App): void {
             }
         } else if (released.kind === "edge") {
             app.select({ kind: "edge", from: released.from, to: released.to });
-        } else if (app.selection) {
-            // the first click on empty paper clears the selection, the next one adds a point
-            app.select(null);
-        } else {
-            app.addPoint(released.at);
+        } else if (!released.moved) {
+            if (app.selection) {
+                // the first click on empty paper clears the selection, the next one adds a point
+                app.select(null);
+            } else {
+                app.addPoint(toWorld(released.start));
+            }
         }
-    });
+    };
+    canvas.addEventListener("pointerup", event => release(event, false));
+    canvas.addEventListener("pointercancel", event => release(event, true));
 
-    svg.addEventListener("pointercancel", () => {
-        press = null;
-        svg.classList.remove("dragging");
-    });
+    canvas.addEventListener("wheel", event => {
+        event.preventDefault();
+        const lines = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? height : 1;
+        // a trackpad pinch arrives as a wheel event with the control key held
+        const speed = event.ctrlKey ? 0.01 : 0.0015;
+        zoomAt(screenOf(event), Math.exp(-event.deltaY * lines * speed));
+    }, { passive: false });
 
     document.addEventListener("keydown", event => {
         if (isTyping()) {
@@ -146,83 +606,110 @@ export function mountCanvas(svg: SVGSVGElement, app: App): void {
             app.select(null);
         }
     });
+
+    // ---- zoom buttons
+
+    const button = (label: string, text: string, action: () => void) => {
+        const element = h("button", { type: "button", "aria-label": label, title: label }, [text]);
+        element.addEventListener("click", action);
+        return element;
+    };
+    const middle = () => ({ x: width / 2, y: height / 2 });
+    paper.append(h("div", { class: "zoom" }, [
+        button("Zoom in", "+", () => zoomAt(middle(), 1.5)),
+        button("Zoom out", "−", () => zoomAt(middle(), 1 / 1.5)),
+        button("Fit the whole graph", "Fit", fit),
+    ]));
+
+    // ---- size, theme and fonts
+
+    const resize = () => {
+        const box = paper.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        const centerWorld = toWorld(middle());
+        width = Math.max(1, box.width);
+        height = Math.max(1, box.height);
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        lastFrameMs = 0;
+        if (fitted) {
+            fit();
+        } else {
+            // keep the same drawing point in the middle
+            camera = { ...camera, x: centerWorld.x - width / 2 / camera.scale, y: centerWorld.y - height / 2 / camera.scale };
+            schedule();
+        }
+    };
+    new ResizeObserver(resize).observe(paper);
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+        colors = readColors();
+        schedule();
+    });
+    document.fonts?.ready.then(() => schedule());
+
+    app.on(change => {
+        if (change === "graph") {
+            refreshGraph();
+        }
+        if (app.loads !== seenLoads) {
+            // a new graph: show all of it
+            seenLoads = app.loads;
+            fit();
+            return;
+        }
+        schedule();
+    });
+
+    refreshGraph();
+    seenLoads = app.loads;
+    resize();
 }
 
-function drawEdge(app: App, edge: Edge, showWeight: boolean): SVGGElement {
-    const { model, step } = app;
-    const directed = model.directed;
-    const key = edgeKey(edge.from, edge.to, directed);
-    const mark = step?.edges.get(key);
-    const focus = step?.focus.edge;
-    const focused = focus !== undefined && edgeKey(focus.from, focus.to, directed) === key;
-    const selected = app.isSelectedEdge(edge.from, edge.to);
+// ---- looks, matching the legend under the player
 
-    // two opposite directed edges are drawn as curves so both stay visible
-    const curved = directed && model.hasEdge(edge.to, edge.from);
-    const { d, middle } = edgeGeometry(
-        model.position(edge.from), model.position(edge.to),
-        pointRadius(edge.from), pointRadius(edge.to), curved,
-    );
+const EDGE_LOOK = {
+    plain: { color: "pencil", width: 2 },
+    tree: { color: "ink", width: 3.5 },
+    skipped: { color: "pencil", width: 2 },
+    result: { color: "blue", width: 4 },
+    error: { color: "red", width: 4 },
+} as const;
 
-    return s("g", {
-        class: classes({ edge: true, [`mark-${mark}`]: mark !== undefined, focused, selected }),
-        "data-from": edge.from,
-        "data-to": edge.to,
-    }, [
-        focused && s("path", { d, class: "edge-highlight" }),
-        selected && s("path", { d, class: "edge-selection" }),
-        s("path", { d, class: "edge-line", "marker-end": directed ? `url(#arrow-${mark ?? "plain"})` : undefined }),
-        s("path", { d, class: "edge-hit" }),
-        showWeight && s("text", { x: middle.x, y: middle.y, class: "edge-weight" }, [edge.weight]),
-    ]);
+const POINT_LOOK = {
+    plain: { fill: "node", stroke: "ink", text: "ink", dot: "pencil" },
+    active: { fill: "gray", stroke: "ink", text: "ink", dot: "gray" },
+    done: { fill: "ink", stroke: "ink", text: "paper", dot: "ink" },
+    current: { fill: "highlighter", stroke: "ink", text: "onHighlighter", dot: "highlighter" },
+    result: { fill: "blue", stroke: "blue", text: "onPen", dot: "blue" },
+    error: { fill: "red", stroke: "red", text: "onPen", dot: "red" },
+} as const;
+type PointLook = keyof typeof POINT_LOOK;
+
+function readColors(): Colors {
+    const style = getComputedStyle(document.documentElement);
+    const value = (name: string) => style.getPropertyValue(name).trim();
+    return {
+        paper: value("--paper"), grid: value("--grid"), gridStrong: value("--grid-strong"),
+        ink: value("--ink"), pencil: value("--pencil"), node: value("--node"), gray: value("--gray"),
+        highlighter: value("--highlighter"), onHighlighter: value("--on-highlighter"),
+        blue: value("--blue"), red: value("--red"), onPen: value("--on-pen"),
+        fontMath: value("--font-math"), fontUi: value("--font-ui"),
+    };
 }
 
-function drawPoint(app: App, name: string): SVGGElement {
-    const { step } = app;
-    const { x, y } = app.model.position(name);
-    const r = pointRadius(name);
-    const mark = step?.points.get(name);
-    // the highlighter ring marks a point the algorithm is reading that is not the current one
-    const focused = step?.focus.point === name && mark !== "current";
-    const selected = app.isSelectedPoint(name);
-    const label = step?.labels.get(name);
+// ---- geometry, in screen pixels
 
-    return s("g", {
-        class: classes({ point: true, [`mark-${mark}`]: mark !== undefined, selected }),
-        "data-point": name,
-        transform: `translate(${round(x)} ${round(y)})`,
-    }, [
-        // a larger invisible circle makes points easier to hit with a finger
-        s("circle", { r: r + 8, class: "point-hit" }),
-        focused && s("circle", { r: r + 9, class: "point-highlight" }),
-        selected && s("circle", { r: r + 6, class: "point-selection" }),
-        s("circle", { r, class: "point-body" }),
-        s("text", { class: "point-name", dy: "0.32em" }, [name]),
-        label !== undefined && s("g", { class: "point-label", transform: `translate(${round(r * 0.75)} ${round(-r * 0.75)})` }, [
-            s("circle", { r: 10 }),
-            s("text", { dy: "0.35em" }, [label]),
-        ]),
-    ]);
-}
-
-// A straight line (or a curve bending to the left of its direction) between the edges of two circles.
-function edgeGeometry(a: Position, b: Position, radiusA: number, radiusB: number, curved: boolean) {
+// A straight line, or a curve bending to the left of its direction, between the edges of two circles.
+function edgeGeometry(edge: Edge, a: Position, b: Position, radiusA: number, radiusB: number, bend: number): DrawnEdge {
     const length = Math.hypot(b.x - a.x, b.y - a.y) || 1;
     const normal = { x: -(b.y - a.y) / length, y: (b.x - a.x) / length };
-    const bend = curved ? 34 : 0;
-    const control = { x: (a.x + b.x) / 2 + normal.x * bend, y: (a.y + b.y) / 2 + normal.y * bend };
-
-    const start = moveToward(a, control, radiusA);
-    const end = moveToward(b, control, radiusB + 1);
-    const d = curved
-        ? `M ${round(start.x)} ${round(start.y)} Q ${round(control.x)} ${round(control.y)} ${round(end.x)} ${round(end.y)}`
-        : `M ${round(start.x)} ${round(start.y)} L ${round(end.x)} ${round(end.y)}`;
-    // the middle of the quadratic curve, or of the line
-    const middle = {
-        x: round(0.25 * start.x + 0.5 * control.x + 0.25 * end.x),
-        y: round(0.25 * start.y + 0.5 * control.y + 0.25 * end.y),
+    const middle = { x: (a.x + b.x) / 2 + normal.x * bend, y: (a.y + b.y) / 2 + normal.y * bend };
+    return {
+        edge,
+        start: moveToward(a, middle, radiusA),
+        control: bend ? middle : null,
+        end: moveToward(b, middle, radiusB),
     };
-    return { d, middle };
 }
 
 function moveToward(from: Position, to: Position, distance: number): Position {
@@ -230,4 +717,100 @@ function moveToward(from: Position, to: Position, distance: number): Position {
     return { x: from.x + (to.x - from.x) / length * distance, y: from.y + (to.y - from.y) / length * distance };
 }
 
-const round = (value: number) => Math.round(value * 10) / 10;
+function tracePath(context: CanvasRenderingContext2D, { start, control, end }: DrawnEdge): void {
+    context.moveTo(start.x, start.y);
+    if (control) {
+        context.quadraticCurveTo(control.x, control.y, end.x, end.y);
+    } else {
+        context.lineTo(end.x, end.y);
+    }
+}
+
+// an arrowhead at the end of the edge, pointing along it
+function traceArrow(context: CanvasRenderingContext2D, { start, control, end }: DrawnEdge, size: number): void {
+    const from = control ?? start;
+    const length = Math.hypot(end.x - from.x, end.y - from.y) || 1;
+    const ux = (end.x - from.x) / length;
+    const uy = (end.y - from.y) / length;
+    context.moveTo(end.x, end.y);
+    context.lineTo(end.x - ux * size - uy * size / 2, end.y - uy * size + ux * size / 2);
+    context.lineTo(end.x - ux * size + uy * size / 2, end.y - uy * size - ux * size / 2);
+    context.closePath();
+}
+
+// the middle of the quadratic curve, or of the line
+function middleOf({ start, control, end }: DrawnEdge): Position {
+    const c = control ?? { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+    return { x: 0.25 * start.x + 0.5 * c.x + 0.25 * end.x, y: 0.25 * start.y + 0.5 * c.y + 0.25 * end.y };
+}
+
+function distanceToEdge(p: Position, { start, control, end }: DrawnEdge): number {
+    if (!control) {
+        return distanceToSegment(p, start, end);
+    }
+    // a curve is close enough to eight straight pieces for a click
+    let best = Infinity;
+    let previous = start;
+    for (let i = 1; i <= 8; i++) {
+        const t = i / 8;
+        const point = {
+            x: (1 - t) * (1 - t) * start.x + 2 * (1 - t) * t * control.x + t * t * end.x,
+            y: (1 - t) * (1 - t) * start.y + 2 * (1 - t) * t * control.y + t * t * end.y,
+        };
+        best = Math.min(best, distanceToSegment(p, previous, point));
+        previous = point;
+    }
+    return best;
+}
+
+function distanceToSegment(p: Position, a: Position, b: Position): number {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+// false when the segment's bounding box is entirely off the screen
+function crosses(a: Position, b: Position, width: number, height: number): boolean {
+    return !(Math.max(a.x, b.x) < 0 || Math.min(a.x, b.x) > width || Math.max(a.y, b.y) < 0 || Math.min(a.y, b.y) > height);
+}
+
+// Points sorted into square cells of the drawing, so finding the points near the pointer
+// looks at a few cells instead of every point of a big graph.
+class PointIndex {
+    private static readonly CELL = 100;
+    private readonly cells = new Map<string, Set<string>>();
+
+    rebuild(points: string[], position: (name: string) => Position): void {
+        this.cells.clear();
+        points.forEach(name => this.add(name, position(name)));
+    }
+
+    move(name: string, from: Position, to: Position): void {
+        this.cells.get(PointIndex.key(from))?.delete(name);
+        this.add(name, to);
+    }
+
+    *near(at: Position, radius: number): Iterable<string> {
+        const { CELL } = PointIndex;
+        const span = Math.min(50, Math.ceil(radius / CELL));
+        const cx = Math.floor(at.x / CELL);
+        const cy = Math.floor(at.y / CELL);
+        for (let x = cx - span; x <= cx + span; x++) {
+            for (let y = cy - span; y <= cy + span; y++) {
+                yield* this.cells.get(`${x},${y}`) ?? [];
+            }
+        }
+    }
+
+    private add(name: string, at: Position): void {
+        const key = PointIndex.key(at);
+        const cell = this.cells.get(key) ?? new Set();
+        cell.add(name);
+        this.cells.set(key, cell);
+    }
+
+    private static key({ x, y }: Position): string {
+        return `${Math.floor(x / PointIndex.CELL)},${Math.floor(y / PointIndex.CELL)}`;
+    }
+}

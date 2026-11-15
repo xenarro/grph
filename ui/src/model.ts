@@ -31,7 +31,8 @@ export interface GraphData {
     edges: Edge[];
 }
 
-// the drawing area, in SVG units
+// The area a small graph is drawn in, in drawing units. The paper itself has no edges:
+// points can be anywhere, and the view zooms and moves to show them.
 export const VIEW = { width: 800, height: 560 };
 
 // The page draws every cell of both matrices, so it grows with the square of the number of points:
@@ -142,11 +143,11 @@ export class GraphModel {
 
     addPoint(name: string, position: Position): void {
         this.edit(graph => graph.addPoint(name));
-        this.positions.set(name, clamp(position));
+        this.positions.set(name, usable(position));
     }
 
     movePoint(name: string, position: Position): void {
-        this.positions.set(name, clamp(position));
+        this.positions.set(name, usable(position));
     }
 
     removePoint(name: string): void {
@@ -202,7 +203,7 @@ export class GraphModel {
         this.positions.clear();
         data.points.forEach(({ name, x, y }) => {
             this.list.addPoint(name);
-            this.positions.set(name, clamp({ x, y }));
+            this.positions.set(name, usable({ x, y }));
         });
         data.edges.forEach(({ from, to, weight }) => this.list.addEdge(from, to, weight));
         this.edit(() => {});
@@ -230,11 +231,11 @@ export class GraphModel {
     }
 }
 
-// keeps points inside the drawing area
-const MARGIN = 36;
-function clamp({ x, y }: Position): Position {
+// a position that can be drawn: a missing or broken coordinate, for example from edited saved data,
+// goes to the middle of the drawing area
+function usable({ x, y }: Position): Position {
     return {
-        x: Math.min(VIEW.width - MARGIN, Math.max(MARGIN, x)),
-        y: Math.min(VIEW.height - MARGIN, Math.max(MARGIN, y)),
+        x: Number.isFinite(x) ? x : VIEW.width / 2,
+        y: Number.isFinite(y) ? y : VIEW.height / 2,
     };
 }

@@ -29,6 +29,8 @@ export class App {
     readFrom: RepresentationId = "list";
     // why the last action did nothing, shown until the next action
     notice: string | null = null;
+    // how many graphs have been loaded, so the drawing can fit each new one in view
+    loads = 1;
     private readonly listeners: ((change: Change) => void)[] = [];
 
     constructor(model: GraphModel = new GraphModel()) {
@@ -136,6 +138,7 @@ export class App {
     load(data: GraphData): void {
         this.model.load(data);
         this.selection = null;
+        this.loads++;
         this.emit("graph");
     }
 

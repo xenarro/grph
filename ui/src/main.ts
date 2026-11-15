@@ -8,7 +8,7 @@ import { mountToolbar } from "./toolbar";
 const app = new App();
 
 mountToolbar(document.getElementById("toolbar")!, app);
-mountCanvas(document.getElementById("canvas") as unknown as SVGSVGElement, app);
+mountCanvas(document.getElementById("canvas") as HTMLCanvasElement, app);
 mountInspector(document.getElementById("inspector")!, app);
 mountPlayer(document.getElementById("player")!, app);
 mountStructures(document.getElementById("structures")!, app);
