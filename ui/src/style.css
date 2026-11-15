@@ -651,6 +651,59 @@ table.grid .selected {
     color: var(--on-highlighter);
 }
 
+/* the list of a big graph: a scrolling window that holds only the rows in view */
+.list-window {
+    position: relative;
+    height: 440px;
+    margin: 0 -6px;
+    overflow: auto;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--paper);
+}
+
+.list-window-rows {
+    position: relative;
+}
+
+.list-row.window-row {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 40px;
+    margin: 0;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+
+.list-more {
+    padding-left: 10px;
+    color: var(--pencil);
+    font-size: 13px;
+}
+
+/* a matrix too big for numbers, a pixel per cell; the marks are drawn on a canvas on top */
+.picture {
+    position: relative;
+    width: min(100%, 480px);
+    border: 1px solid var(--rule);
+}
+
+.picture canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.picture-cells {
+    image-rendering: pixelated;
+}
+
+.picture-marks {
+    cursor: crosshair;
+}
+
 .list-head.selected,
 .list-node.selected {
     outline: 2px dashed var(--ink);
