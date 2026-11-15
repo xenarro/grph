@@ -46,6 +46,7 @@ export class App {
     // the point a search ends at, null for none; see `start` for where it begins
     target: string | null = null;
     private chosenStart: string | null = null;
+    private saveTimer: ReturnType<typeof setTimeout> | undefined;
     private readonly listeners: ((change: Change) => void)[] = [];
 
     constructor(model: GraphModel = new GraphModel()) {
@@ -94,7 +95,13 @@ export class App {
                 // an edited graph is no longer the graph its recipe makes
                 this.recipe = null;
             }
-            this.save();
+            if (change === "positions") {
+                // a dragged point moves many times a second: save once it has stopped for a moment
+                clearTimeout(this.saveTimer);
+                this.saveTimer = setTimeout(() => this.save(), 300);
+            } else {
+                this.save();
+            }
         }
         this.listeners.forEach(listener => listener(change));
     }
@@ -102,6 +109,7 @@ export class App {
     // The graph is kept in this browser between visits: a small one point by point, a big generated one
     // as its recipe. A big graph that was edited is not saved, so the graph saved before it stays.
     private save(): void {
+        clearTimeout(this.saveTimer);
         if (this.model.pointCount() <= SAVE_POINTS) {
             store(this.model.toData());
         } else if (this.recipe) {

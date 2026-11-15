@@ -14,6 +14,7 @@
 import { edgeKey } from "../../src/algorithms/trace";
 import Edge from "../../src/graph/interfaces/edge";
 import { App } from "./app";
+import { mix, pack, rgb } from "./colors";
 import { h, isTyping } from "./dom";
 import { Position, VIEW } from "./model";
 
@@ -54,7 +55,8 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
     const paper = canvas.parentElement!;
     canvas.setAttribute("role", "application");
     canvas.setAttribute("aria-label", "Graph drawing. Click empty paper to add a point, drag a point to move it, click two points to connect them, drag the paper to move around, and use the wheel or two fingers to zoom.");
-    const context = canvas.getContext("2d", { alpha: false })!;
+    // A transparent canvas: an opaque one starts black, and stays black wherever drawing fails.
+    const context = canvas.getContext("2d")!;
 
     let camera: Camera = { x: 0, y: 0, scale: 1 };
     // true until the user zooms or moves the view: a resized canvas then fits the graph again
@@ -74,10 +76,29 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
     let drawnEdges: DrawnEdge[] = [];
     let seenLoads = -1;
 
+    // positions by point number and edges as pairs of point numbers, for drawing a whole big graph fast
+    let indexOf = new Map<string, number>();
+    let xs = new Float64Array(0);
+    let ys = new Float64Array(0);
+    let edgeEnds = new Int32Array(0);
+
     const refreshGraph = () => {
         const { model } = app;
         points = model.points();
         edges = model.edges();
+        indexOf = new Map(points.map((name, i) => [name, i]));
+        xs = new Float64Array(points.length);
+        ys = new Float64Array(points.length);
+        points.forEach((name, i) => {
+            const { x, y } = model.position(name);
+            xs[i] = x;
+            ys[i] = y;
+        });
+        edgeEnds = new Int32Array(edges.length * 2);
+        edges.forEach((edge, i) => {
+            edgeEnds[i * 2] = indexOf.get(edge.from)!;
+            edgeEnds[i * 2 + 1] = indexOf.get(edge.to)!;
+        });
         keys = edges.map(edge => edgeKey(edge.from, edge.to, model.directed));
         curved = edges.map(edge => model.directed && model.hasEdge(edge.to, edge.from));
         showWeights = edges.some(edge => edge.weight !== 1);
@@ -154,6 +175,7 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
     };
 
     const drawSnapshot = () => {
+        colors = readColors();
         frame = 0;
         const from = snapshotCamera!;
         const ratio = camera.scale / from.scale;
@@ -168,6 +190,8 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
     };
 
     const draw = () => {
+        // read every frame: cheap, follows the theme, and never stuck with colours read before the styles loaded
+        colors = readColors();
         frame = 0;
         const started = performance.now();
         const dpr = window.devicePixelRatio || 1;
@@ -180,7 +204,11 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
         const onScreen = 20 * drawScale; // the radius of a one-letter point, in pixels
         const detail: Detail = onScreen >= 9 ? "full" : onScreen >= 2.5 ? "small" : "dots";
 
-        drawEdges(detail, drawScale);
+        if (detail === "dots") {
+            drawOverview(drawScale);
+        } else {
+            drawEdges(detail, drawScale);
+        }
         drawPoints(detail, drawScale);
 
         if (points.length === 0) {
@@ -329,18 +357,100 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
         }
     };
 
+    // A whole big graph, written straight into an image: hundreds of thousands of tiny lines and dots
+    // cost far less as pixels in an array than as as many separate drawing calls.
+    const overview = { canvas: document.createElement("canvas"), image: new ImageData(1, 1), pixels: new Uint32Array(1) };
+
+    const drawOverview = (drawScale: number) => {
+        const w = canvas.width;
+        const h = canvas.height;
+        if (overview.image.width !== w || overview.image.height !== h) {
+            overview.image = new ImageData(w, h);
+            overview.pixels = new Uint32Array(overview.image.data.buffer);
+            overview.canvas.width = w;
+            overview.canvas.height = h;
+        }
+        const pixels = overview.pixels;
+        pixels.fill(0);
+        const { step } = app;
+        const k = camera.scale * (window.devicePixelRatio || 1);
+        const sx = (i: number) => Math.round((xs[i] - camera.x) * k);
+        const sy = (i: number) => Math.round((ys[i] - camera.y) * k);
+        const plot = (x: number, y: number, color: number) => {
+            if (x >= 0 && y >= 0 && x < w && y < h) {
+                pixels[y * w + x] = color;
+            }
+        };
+
+        const paper = rgb(colors.paper);
+        const edgeColors = {
+            plain: pack(mix(rgb(colors.pencil), paper, 0.35)),
+            skipped: pack(mix(rgb(colors.pencil), paper, 0.35)),
+            tree: pack(rgb(colors.ink)),
+            result: pack(rgb(colors.blue)),
+            error: pack(rgb(colors.red)),
+        };
+        for (let i = 0; i < edges.length; i++) {
+            const mark = step?.edges.get(keys[i]) ?? "plain";
+            const thick = mark === "result" || mark === "error";
+            const a = edgeEnds[i * 2];
+            const b = edgeEnds[i * 2 + 1];
+            rasterLine(sx(a), sy(a), sx(b), sy(b), w, h, (x, y) => {
+                plot(x, y, edgeColors[mark]);
+                if (thick) {
+                    plot(x + 1, y, edgeColors[mark]);
+                    plot(x, y + 1, edgeColors[mark]);
+                }
+            });
+        }
+
+        // one small square per point, smaller when the points are close together
+        const dot = Math.max(1, Math.min(3, Math.round(20 * drawScale * 1.2))) * Math.round(window.devicePixelRatio || 1);
+        const pointColors: Record<PointLook, number> = {
+            plain: pack(rgb(colors.pencil)), active: pack(rgb(colors.gray)), done: pack(rgb(colors.ink)),
+            current: pack(rgb(colors.highlighter)), result: pack(rgb(colors.blue)), error: pack(rgb(colors.red)),
+        };
+        for (let i = 0; i < points.length; i++) {
+            const x = sx(i);
+            const y = sy(i);
+            if (x < -4 || y < -4 || x >= w + 4 || y >= h + 4) {
+                continue;
+            }
+            const mark: PointLook = step?.points.get(points[i]) ?? "plain";
+            const size = mark === "result" || mark === "error" ? Math.max(dot, 4) : dot;
+            const half = size >> 1;
+            for (let dy = 0; dy < size; dy++) {
+                for (let dx = 0; dx < size; dx++) {
+                    plot(x - half + dx, y - half + dy, pointColors[mark]);
+                }
+            }
+        }
+
+        overview.canvas.getContext("2d")!.putImageData(overview.image, 0, 0);
+        context.save();
+        context.setTransform(1, 0, 0, 1, 0, 0);
+        context.drawImage(overview.canvas, 0, 0);
+        context.restore();
+        drawnEdges = [];
+    };
+
     const drawPoints = (detail: Detail, drawScale: number) => {
         const { model, step } = app;
         const margin = 60 * drawScale;
-        const shown: { name: string; at: Position; r: number; mark: PointLook }[] = [];
-        for (const name of points) {
+        const look = (name: string) => {
             const at = toScreen(model.position(name));
             if (at.x < -margin || at.y < -margin || at.x > width + margin || at.y > height + margin) {
-                continue;
+                return null;
             }
             const r = detail === "dots" ? 1.5 : pointRadius(name) * drawScale;
-            shown.push({ name, at, r, mark: step?.points.get(name) ?? "plain" });
-        }
+            return { name, at, r, mark: (step?.points.get(name) ?? "plain") as PointLook };
+        };
+        // in the overview every point is already a pixel: only the few marked ones are looked up here
+        const selectedName = app.selection?.kind === "point" ? app.selection.name : null;
+        const names = detail === "dots"
+            ? [...new Set([step?.focus.point, app.start, app.target, selectedName])].filter((name): name is string => !!name && model.list.hasPoint(name))
+            : points;
+        const shown = names.map(look).filter(p => p !== null);
 
         // the highlighter under a point the algorithm reads that is not the current one
         const focusName = step?.focus.point;
@@ -353,31 +463,24 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
             }
         }
 
-        if (detail === "dots") {
-            // one small square per point, grouped by colour; smaller when the points are close together
-            const dot = Math.max(1, Math.min(3, Math.round(20 * drawScale * 1.2)));
-            const byColor = new Map<string, Position[]>();
-            for (const { at, mark } of shown) {
-                const color = colors[POINT_LOOK[mark].dot];
-                const list = byColor.get(color) ?? [];
-                list.push(at);
-                byColor.set(color, list);
+        if (detail !== "dots") {
+            // circles grouped by look: one path per look, filled and outlined once
+            const groups = new Map<PointLook, typeof shown>();
+            for (const point of shown) {
+                const group = groups.get(point.mark) ?? [];
+                group.push(point);
+                groups.set(point.mark, group);
             }
-            for (const [color, list] of byColor) {
-                context.fillStyle = color;
-                const size = color === colors.blue || color === colors.red ? Math.max(dot, 4) : dot;
-                for (const at of list) {
-                    context.fillRect(Math.round(at.x - size / 2), Math.round(at.y - size / 2), size, size);
-                }
-            }
-        } else {
-            for (const { at, r, mark } of shown) {
-                const look = POINT_LOOK[mark];
+            for (const [mark, group] of groups) {
+                const pointLook = POINT_LOOK[mark];
                 context.beginPath();
-                context.arc(at.x, at.y, r, 0, Math.PI * 2);
-                context.fillStyle = colors[look.fill];
+                for (const { at, r } of group) {
+                    context.moveTo(at.x + r, at.y);
+                    context.arc(at.x, at.y, r, 0, Math.PI * 2);
+                }
+                context.fillStyle = colors[pointLook.fill];
                 context.fill();
-                context.strokeStyle = colors[look.stroke];
+                context.strokeStyle = colors[pointLook.stroke];
                 context.lineWidth = detail === "full" ? (mark === "current" ? 3 : 2) * drawScale : 1;
                 context.stroke();
             }
@@ -571,6 +674,11 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
             const world = toWorld(at);
             const position = { x: world.x + press.offset.x, y: world.y + press.offset.y };
             index.move(press.name, app.model.position(press.name), position);
+            const i = indexOf.get(press.name);
+            if (i !== undefined) {
+                xs[i] = position.x;
+                ys[i] = position.y;
+            }
             app.movePoint(press.name, position);
         } else {
             camera = {
@@ -715,9 +823,16 @@ const POINT_LOOK = {
 } as const;
 type PointLook = keyof typeof POINT_LOOK;
 
+// the light theme, for the moment before the page's styles have loaded
+const FALLBACK: Record<string, string> = {
+    "--paper": "#eef2ea", "--grid": "#dce4d6", "--grid-strong": "#c9d4c2", "--ink": "#1f2a2e", "--pencil": "#56645c",
+    "--node": "#ffffff", "--gray": "#aeb8b1", "--highlighter": "#f5e15a", "--on-highlighter": "#1f2a2e",
+    "--blue": "#1d5fbf", "--red": "#c42f2f", "--on-pen": "#ffffff", "--font-math": "serif", "--font-ui": "sans-serif",
+};
+
 function readColors(): Colors {
     const style = getComputedStyle(document.documentElement);
-    const value = (name: string) => style.getPropertyValue(name).trim();
+    const value = (name: string) => style.getPropertyValue(name).trim() || FALLBACK[name];
     return {
         paper: value("--paper"), grid: value("--grid"), gridStrong: value("--grid-strong"),
         ink: value("--ink"), pencil: value("--pencil"), node: value("--node"), gray: value("--gray"),
@@ -766,6 +881,57 @@ function traceArrow(context: CanvasRenderingContext2D, { start, control, end }: 
     context.lineTo(end.x - ux * size - uy * size / 2, end.y - uy * size + ux * size / 2);
     context.lineTo(end.x - ux * size + uy * size / 2, end.y - uy * size - ux * size / 2);
     context.closePath();
+}
+
+// Visits the pixels of a straight line from (x0, y0) to (x1, y1) that lie in a w × h image
+// (Bresenham's line algorithm). The line is first cut to the image, so a far-away end costs nothing.
+function rasterLine(x0: number, y0: number, x1: number, y1: number, w: number, h: number, visit: (x: number, y: number) => void): void {
+    // Liang–Barsky clipping: keep the part of the line where 0 ≤ x < w and 0 ≤ y < h
+    let t0 = 0;
+    let t1 = 1;
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    for (const [p, q] of [[-dx, x0], [dx, w - 1 - x0], [-dy, y0], [dy, h - 1 - y0]]) {
+        if (p === 0) {
+            if (q < 0) {
+                return;
+            }
+        } else {
+            const t = q / p;
+            if (p < 0) {
+                t0 = Math.max(t0, t);
+            } else {
+                t1 = Math.min(t1, t);
+            }
+            if (t0 > t1) {
+                return;
+            }
+        }
+    }
+    let x = Math.round(x0 + t0 * dx);
+    let y = Math.round(y0 + t0 * dy);
+    const endX = Math.round(x0 + t1 * dx);
+    const endY = Math.round(y0 + t1 * dy);
+    const stepX = x < endX ? 1 : -1;
+    const stepY = y < endY ? 1 : -1;
+    const width = Math.abs(endX - x);
+    const height = -Math.abs(endY - y);
+    let error = width + height;
+    for (;;) {
+        visit(x, y);
+        if (x === endX && y === endY) {
+            return;
+        }
+        const twice = 2 * error;
+        if (twice >= height) {
+            error += height;
+            x += stepX;
+        }
+        if (twice <= width) {
+            error += width;
+            y += stepY;
+        }
+    }
 }
 
 // the middle of the quadratic curve, or of the line

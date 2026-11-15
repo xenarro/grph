@@ -7,6 +7,7 @@
 // so a single cell of a 1,000 × 1,000 matrix can still be seen. Hovering a cell names it,
 // clicking it selects its edge, or its point when the cell is 0.
 
+import { rgb } from "./colors";
 import { h } from "./dom";
 
 export interface GridSource {
@@ -31,43 +32,62 @@ export interface GridMarks {
 // the widest the picture is on the page, in CSS pixels (see .picture in style.css)
 const DISPLAY_WIDTH = 480;
 
+// The same canvases are kept from render to render: a new pair for every step of a run would pile up
+// until the browser collects them, and Safari shows new canvases black once their memory runs past its limit.
 export class GridPicture {
-    private base: { key: string; image: ImageData } | null = null;
+    private readonly cells = h("canvas", { class: "picture-cells" });
+    private readonly overlay = h("canvas", { class: "picture-marks" });
+    private readonly frame = h("div", { class: "picture" }, [this.cells, this.overlay]);
+    private drawn = "";
+    // what the latest render shows, for the pointer handlers made once
+    private source: GridSource | null = null;
+    private pick: (row: number, column: number) => void = () => {};
 
-    // `key` names the graph and its colours: the picture of the cells is drawn again only when it changes
+    constructor() {
+        const cellAt = (event: MouseEvent): [number, number] | null => {
+            const source = this.source;
+            if (!source) {
+                return null;
+            }
+            const box = this.overlay.getBoundingClientRect();
+            return [
+                Math.min(source.rows - 1, Math.floor((event.clientY - box.top) / box.height * source.rows)),
+                Math.min(source.columns - 1, Math.floor((event.clientX - box.left) / box.width * source.columns)),
+            ];
+        };
+        this.overlay.addEventListener("mousemove", event => {
+            const cell = cellAt(event);
+            this.overlay.title = cell && this.source ? this.source.describe(...cell) : "";
+        });
+        this.overlay.addEventListener("click", event => {
+            const cell = cellAt(event);
+            if (cell) {
+                this.pick(...cell);
+            }
+        });
+    }
+
+    // `key` names the graph: the picture of the cells is drawn again only when it or the colours change
     element(key: string, source: GridSource, marks: GridMarks, pick: (row: number, column: number) => void): HTMLElement {
+        this.source = source;
+        this.pick = pick;
         // the picture keeps the matrix's shape, but no wider than 4 : 1 and no taller than 1 : 2
         const ratio = Math.min(4, Math.max(0.5, source.columns / Math.max(1, source.rows)));
         const dpr = window.devicePixelRatio || 1;
         const width = Math.max(1, Math.min(source.columns, Math.round(DISPLAY_WIDTH * dpr)));
         const height = Math.max(1, Math.min(source.rows, Math.round(DISPLAY_WIDTH / ratio * dpr)));
         const colors = readColors();
-        const baseKey = `${key} ${width}×${height} ${colors.key}`;
-        if (this.base?.key !== baseKey) {
-            this.base = { key: baseKey, image: drawCells(source, width, height, colors) };
+        const drawn = `${key} ${width}×${height} ${colors.key}`;
+        if (this.drawn !== drawn) {
+            this.drawn = drawn;
+            this.cells.width = width;
+            this.cells.height = height;
+            this.cells.getContext("2d")!.putImageData(drawCells(source, width, height, colors), 0, 0);
+            this.frame.style.aspectRatio = String(ratio);
         }
-
-        const cells = h("canvas", { class: "picture-cells", width, height });
-        cells.getContext("2d")!.putImageData(this.base.image, 0, 0);
-        const overlay = h("canvas", { class: "picture-marks" });
-        const frame = h("div", { class: "picture", style: `aspect-ratio: ${ratio}` }, [cells, overlay]);
-
-        const cellAt = (event: MouseEvent): [number, number] => {
-            const box = overlay.getBoundingClientRect();
-            return [
-                Math.min(source.rows - 1, Math.floor((event.clientY - box.top) / box.height * source.rows)),
-                Math.min(source.columns - 1, Math.floor((event.clientX - box.left) / box.width * source.columns)),
-            ];
-        };
-        overlay.addEventListener("mousemove", event => {
-            const [row, column] = cellAt(event);
-            overlay.title = source.describe(row, column);
-        });
-        overlay.addEventListener("click", event => pick(...cellAt(event)));
-
         // the marks are drawn once the picture has its size on the page
-        requestAnimationFrame(() => drawMarks(overlay, source, marks, colors));
-        return frame;
+        requestAnimationFrame(() => drawMarks(this.overlay, source, marks, colors));
+        return this.frame;
     }
 }
 
@@ -94,16 +114,6 @@ function readColors(): Colors {
         soft: value("--highlighter-soft"),
         ink: value("--ink"),
     };
-}
-
-// any CSS colour as red, green and blue
-function rgb(color: string): [number, number, number] {
-    const canvas = h("canvas", { width: 1, height: 1 });
-    const context = canvas.getContext("2d", { willReadFrequently: true })!;
-    context.fillStyle = color;
-    context.fillRect(0, 0, 1, 1);
-    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
-    return [r, g, b];
 }
 
 function drawCells(source: GridSource, width: number, height: number, colors: Colors): ImageData {
