@@ -3,12 +3,14 @@ import { dfs } from "../src/algorithms/dfs";
 import { edgeKey } from "../src/algorithms/trace";
 import AdjacencyMatrix from "../src/graph/adjacency-matrix";
 import AdjacencyList from "../src/graph/adjacency-list";
+import CompactAdjacencyList from "../src/graph/compact-adjacency-list";
 import IncidenceMatrix from "../src/graph/incidence-matrix";
 import Graph from "../src/graph/interfaces/graph";
 
 const representations = [
     ["AdjacencyMatrix", (directed: boolean): Graph => new AdjacencyMatrix(directed)],
     ["AdjacencyList", (directed: boolean): Graph => new AdjacencyList(directed)],
+    ["CompactAdjacencyList", (directed: boolean): Graph => new CompactAdjacencyList(directed)],
     ["IncidenceMatrix", (directed: boolean): Graph => new IncidenceMatrix(directed)],
 ] as const;
 

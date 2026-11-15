@@ -1,15 +1,17 @@
-// The three representations must always describe the same graph.
+// All the representations must always describe the same graph.
 // Random sequences of operations are applied to all of them and the results compared.
 
 import { describe, expect, it } from "vitest";
 import AdjacencyMatrix from "../src/graph/adjacency-matrix";
 import AdjacencyList from "../src/graph/adjacency-list";
+import CompactAdjacencyList from "../src/graph/compact-adjacency-list";
 import IncidenceMatrix from "../src/graph/incidence-matrix";
 import Graph from "../src/graph/interfaces/graph";
 
 const createAll = (directed: boolean): Graph[] => [
     new AdjacencyMatrix(directed),
     new AdjacencyList(directed),
+    new CompactAdjacencyList(directed),
     new IncidenceMatrix(directed),
 ];
 

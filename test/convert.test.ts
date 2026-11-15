@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import AdjacencyList from "../src/graph/adjacency-list";
 import AdjacencyMatrix from "../src/graph/adjacency-matrix";
+import CompactAdjacencyList from "../src/graph/compact-adjacency-list";
 import IncidenceMatrix from "../src/graph/incidence-matrix";
 import { convert } from "../src/graph/convert";
 import Graph from "../src/graph/interfaces/graph";
@@ -8,6 +9,7 @@ import Graph from "../src/graph/interfaces/graph";
 const kinds = {
     "adjacency matrix": (directed: boolean) => new AdjacencyMatrix(directed),
     "adjacency list": (directed: boolean) => new AdjacencyList(directed),
+    "compact adjacency list": (directed: boolean) => new CompactAdjacencyList(directed),
     "incidence matrix": (directed: boolean) => new IncidenceMatrix(directed),
 };
 const pairs = Object.entries(kinds).flatMap(([from, makeFrom]) =>
