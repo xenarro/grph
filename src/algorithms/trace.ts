@@ -46,6 +46,8 @@ export interface TraceList {
 export interface Step {
     readonly message: string;
     readonly focus: Focus;
+    // the part of the algorithm this step is in, named like the lines of its pseudocode
+    readonly line?: string;
     readonly points: ReadonlyMap<string, PointMark>;
     readonly edges: ReadonlyMap<string, EdgeMark>; // keyed by edgeKey()
     readonly labels: ReadonlyMap<string, string>;  // short text shown next to a point
@@ -80,6 +82,7 @@ type Change =
 interface RecordedStep {
     readonly message: string;
     readonly focus: Focus;
+    readonly line?: string;
     readonly changes: readonly Change[];
 }
 
@@ -165,11 +168,12 @@ export class Trace {
             this.position--;
         }
 
-        const { message, focus } = this.steps[target];
+        const { message, focus, line } = this.steps[target];
         const { maps, lists } = this.state;
         return {
             message,
             focus,
+            line,
             points: maps.points as ReadonlyMap<string, PointMark>,
             edges: maps.edges as ReadonlyMap<string, EdgeMark>,
             labels: maps.labels,
@@ -193,7 +197,7 @@ export class Tracer {
     // past maxSteps: how many steps went into the last one, its latest message,
     // and where each key's combined change is in `changes`
     private skipped = 0;
-    private latest: { message: string; focus: Focus } | null = null;
+    private latest: { message: string; focus: Focus; line?: string } | null = null;
     private readonly combined = new Map<string, number>();
 
     constructor(private readonly directed: boolean, private readonly maxSteps: number = MAX_STEPS) {}
@@ -260,13 +264,14 @@ export class Tracer {
         return this.record({ kind: "removeAt", list, index, item: stored[index] });
     }
 
-    step(message: string, focus: Focus = {}): this {
+    // `line` names the line of the algorithm's pseudocode the step is at
+    step(message: string, focus: Focus = {}, line?: string): this {
         if (this.steps.length < this.maxSteps) {
-            this.steps.push({ message, focus, changes: this.changes });
+            this.steps.push({ message, focus, line, changes: this.changes });
             this.changes = [];
         } else {
             this.skipped++;
-            this.latest = { message, focus };
+            this.latest = { message, focus, line };
         }
         return this;
     }
@@ -279,6 +284,7 @@ export class Tracer {
         const last = {
             message: `${this.skipped.toLocaleString("en-US")} more steps, not kept one by one. ${this.latest.message}`,
             focus: this.latest.focus,
+            line: this.latest.line,
             changes: this.changes,
         };
         return new Trace([...this.steps, last], this.lists);

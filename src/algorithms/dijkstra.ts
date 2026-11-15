@@ -95,7 +95,7 @@ const dijkstra = (graph: Graph, start: string, target?: string): DijkstraResult 
     tracer.step(target === undefined
         ? `Start Dijkstra's algorithm at ${start}, at distance 0. Every other point is at ∞ until a path to it is found.`
         : `Start Dijkstra's algorithm at ${start}, looking for the lightest path to ${target}. ${start} is at distance 0, every other point at ∞ until a path to it is found.`,
-    { point: start });
+    { point: start }, "start");
 
     let previous: string | undefined;
     let found = false;
@@ -115,11 +115,11 @@ const dijkstra = (graph: Graph, start: string, target?: string): DijkstraResult 
         tracer.removeAt("Queue", 0).add("Finished", name).markPoint(name, "current");
 
         if (name === target) {
-            tracer.step(`Take ${name}, the nearest point in the queue, at distance ${format(distance)}. It is the target, so this is the lightest path to it.`, { point: name });
+            tracer.step(`Take ${name}, the nearest point in the queue, at distance ${format(distance)}. It is the target, so this is the lightest path to it.`, { point: name }, "target");
             found = true;
             break;
         }
-        tracer.step(`Take ${name}, the nearest point in the queue, at distance ${format(distance)}. No path to it can be lighter, so this distance is final. Try its edges.`, { point: name });
+        tracer.step(`Take ${name}, the nearest point in the queue, at distance ${format(distance)}. No path to it can be lighter, so this distance is final. Try its edges.`, { point: name }, "take");
 
         for (const { name: next, weight } of graph.getNeighbors(name)) {
             const focus = { point: name, edge: { from: name, to: next } };
@@ -127,12 +127,12 @@ const dijkstra = (graph: Graph, start: string, target?: string): DijkstraResult 
 
             if (finished.has(next)) {
                 if (!graph.directed && cameFrom.get(name) === next) {
-                    tracer.step(`Edge ${edge} leads back to ${next}, where ${name} was reached from. Skip it.`, focus);
+                    tracer.step(`Edge ${edge} leads back to ${next}, where ${name} was reached from. Skip it.`, focus, "skip");
                 } else {
                     if (tracer.edgeMark(name, next) === undefined) {
                         tracer.markEdge(name, next, "skipped");
                     }
-                    tracer.step(`Edge ${edge}: ${next} is already finished. Skip it.`, focus);
+                    tracer.step(`Edge ${edge}: ${next} is already finished. Skip it.`, focus, "skip");
                 }
                 continue;
             }
@@ -153,12 +153,12 @@ const dijkstra = (graph: Graph, start: string, target?: string): DijkstraResult 
                 tracer.step(known === undefined
                     ? `Edge ${edge}, weight ${format(weight)}: ${next} is reached for the first time, at ${sum}. Put it in the queue.`
                     : `Edge ${edge}, weight ${format(weight)}: through ${name}, ${next} is nearer: ${sum} instead of ${format(known)}. Move it up the queue.`,
-                focus);
+                focus, "nearer");
             } else {
                 if (tracer.edgeMark(name, next) === undefined) {
                     tracer.markEdge(name, next, "skipped");
                 }
-                tracer.step(`Edge ${edge}, weight ${format(weight)}: ${sum} is not less than ${next}'s distance ${format(known)}. Keep ${next} as it is.`, focus);
+                tracer.step(`Edge ${edge}, weight ${format(weight)}: ${sum} is not less than ${next}'s distance ${format(known)}. Keep ${next} as it is.`, focus, "keep");
             }
         }
         previous = name;
@@ -178,7 +178,7 @@ const dijkstra = (graph: Graph, start: string, target?: string): DijkstraResult 
             }
         });
         const distance = distances.get(target)!;
-        tracer.step(`The lightest path from ${start} to ${target}: ${nameList(path, " → ")}, total weight ${format(distance)}.`);
+        tracer.step(`The lightest path from ${start} to ${target}: ${nameList(path, " → ")}, total weight ${format(distance)}.`, {}, "path");
         return { distances: final, path, distance, steps: tracer.trace() };
     }
 
