@@ -21,15 +21,17 @@ export function mountPlayer(root: HTMLElement, app: App): void {
     // ---- setup row
 
     const algorithm = h("select", { id: "algorithm" }, algorithms.map(a => h("option", { value: a.id }, [a.name])));
-    const start = h("select", { id: "start" });
-    const target = h("select", { id: "target" });
+    // A select with a hundred thousand options would be slow and useless,
+    // so for a big graph the start and target are typed in instead.
+    const start = new PointField("start", "Start", false);
+    const target = new PointField("target", "Target", true);
     const readFrom = h("select", { id: "read-from" });
     const run = h("button", { type: "button", class: "primary" }, ["Run"]);
 
     const field = (label: string, control: HTMLElement) =>
         h("div", { class: "field" }, [h("label", { for: control.id }, [label]), control]);
-    const startField = field("Start", start);
-    const targetField = field("Target", target);
+    const startField = start.field;
+    const targetField = target.field;
 
     const description = h("p", { class: "algorithm-description" });
     const notice = h("p", { class: "notice", role: "status" });
@@ -90,14 +92,8 @@ export function mountPlayer(root: HTMLElement, app: App): void {
 
     const fillPointOptions = () => {
         const points = app.model.points();
-        const keep = (select: HTMLSelectElement, fallback: string) =>
-            points.includes(select.value) ? select.value : fallback;
-        const startValue = keep(start, points[0] ?? "");
-        const targetValue = keep(target, "");
-        start.replaceChildren(...points.map(p => h("option", { value: p }, [p])));
-        target.replaceChildren(h("option", { value: "" }, ["None"]), ...points.map(p => h("option", { value: p }, [p])));
-        start.value = startValue;
-        target.value = targetValue;
+        start.fill(points, points[0] ?? "");
+        target.fill(points, "");
     };
 
     // a matrix the graph is too big for can't be chosen
@@ -159,8 +155,8 @@ export function mountPlayer(root: HTMLElement, app: App): void {
         note = "";
         try {
             steps = selected().run(app.model.representation(app.readFrom) ?? app.model.list, {
-                start: start.value || undefined,
-                target: target.value || undefined,
+                start: start.value() || undefined,
+                target: target.value() || undefined,
             });
             show(0);
         } catch (error) {
@@ -204,8 +200,8 @@ export function mountPlayer(root: HTMLElement, app: App): void {
     slider.addEventListener("input", () => { stop(); show(Number(slider.value)); });
 
     algorithm.addEventListener("change", () => clearRun());
-    start.addEventListener("change", () => clearRun());
-    target.addEventListener("change", () => clearRun());
+    start.onChange(() => clearRun());
+    target.onChange(() => clearRun());
     readFrom.addEventListener("change", () => {
         app.setReadFrom(readFrom.value as RepresentationId);
         clearRun(steps ? "Run again to read the neighbors from the other representation. The visiting order can change." : "");
@@ -241,6 +237,57 @@ export function mountPlayer(root: HTMLElement, app: App): void {
     fillPointOptions();
     fillReadFromOptions();
     render();
+}
+
+const MAX_OPTIONS = 1_000;
+
+// A labelled choice of a point: a select for a small graph, a text box for a big one.
+class PointField {
+    readonly field: HTMLElement;
+    private readonly select: HTMLSelectElement;
+    private readonly input: HTMLInputElement;
+    private readonly label: HTMLLabelElement;
+    private typed = false;
+
+    constructor(id: string, label: string, private readonly optional: boolean) {
+        this.select = h("select", { id });
+        this.input = h("input", {
+            id: `${id}-name`, type: "text", autocomplete: "off", spellcheck: "false",
+            placeholder: optional ? "None" : "Point name", size: 8, hidden: true,
+        });
+        this.label = h("label", { for: id }, [label]);
+        this.field = h("div", { class: "field" }, [this.label, this.select, this.input]);
+    }
+
+    // shows the graph's points, keeping the current choice while that point still exists
+    fill(points: string[], fallback: string): void {
+        const current = this.value();
+        this.typed = points.length > MAX_OPTIONS;
+        this.select.hidden = this.typed;
+        this.input.hidden = !this.typed;
+        this.label.htmlFor = this.typed ? this.input.id : this.select.id;
+        const keep = current !== "" && (this.typed ? new Set(points).has(current) : points.includes(current));
+        const value = keep ? current : fallback;
+        if (this.typed) {
+            this.select.replaceChildren();
+            this.input.value = value;
+        } else {
+            this.select.replaceChildren(
+                ...(this.optional ? [h("option", { value: "" }, ["None"])] : []),
+                ...points.map(p => h("option", { value: p }, [p])),
+            );
+            this.select.value = value;
+        }
+    }
+
+    value(): string {
+        return this.typed ? this.input.value.trim() : this.select.value;
+    }
+
+    onChange(listener: () => void): void {
+        this.select.addEventListener("change", listener);
+        this.input.addEventListener("change", listener);
+    }
 }
 
 // A list of a big graph can hold thousands of points: only the newest ones are shown as chips,

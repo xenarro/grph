@@ -350,7 +350,8 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
         }
 
         if (detail === "dots") {
-            // one small square per point, grouped by colour
+            // one small square per point, grouped by colour; smaller when the points are close together
+            const dot = Math.max(1, Math.min(3, Math.round(20 * drawScale * 1.2)));
             const byColor = new Map<string, Position[]>();
             for (const { at, mark } of shown) {
                 const color = colors[POINT_LOOK[mark].dot];
@@ -361,7 +362,7 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
             for (const [color, list] of byColor) {
                 context.fillStyle = color;
                 for (const at of list) {
-                    context.fillRect(Math.round(at.x) - 1, Math.round(at.y) - 1, 3, 3);
+                    context.fillRect(Math.round(at.x - dot / 2), Math.round(at.y - dot / 2), dot, dot);
                 }
             }
         } else {

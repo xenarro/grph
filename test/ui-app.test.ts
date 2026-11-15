@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { App, notices } from "../ui/src/app";
-import { GraphModel, MAX_EDGES, MAX_POINTS } from "../ui/src/model";
+import { generate } from "../ui/src/generate";
+import { GraphModel, LIMITS } from "../ui/src/model";
+import { SAVE_POINTS } from "../ui/src/app";
+
+// a small graph limit, so the limit tests stay quick
+const small = { ...LIMITS, graph: { points: 40, edges: 120 } };
+const MAX_POINTS = small.graph.points;
+const MAX_EDGES = small.graph.edges;
 import { presets } from "../ui/src/presets";
 
 const STORAGE_KEY = "grph:graph";
@@ -21,7 +28,7 @@ describe("App", () => {
     afterEach(() => delete (globalThis as { localStorage?: unknown }).localStorage);
 
     it("does not add a point past the limit and says why", () => {
-        const app = new App();
+        const app = new App(new GraphModel(small));
         app.clear();
         for (let i = 0; i < MAX_POINTS; i++) {
             app.addPoint({ x: 100, y: 100 });
@@ -30,7 +37,7 @@ describe("App", () => {
 
         app.addPoint({ x: 100, y: 100 });
         expect(app.model.points().length).toBe(MAX_POINTS);
-        expect(app.notice).toBe(notices.tooManyPoints);
+        expect(app.notice).toBe(notices.tooManyPoints(small));
 
         // the next action clears the notice
         app.select(null);
@@ -38,7 +45,7 @@ describe("App", () => {
     });
 
     it("does not add an edge past the limit and keeps the first point selected", () => {
-        const app = new App();
+        const app = new App(new GraphModel(small));
         app.clear();
         for (let i = 0; i < 20; i++) {
             app.addPoint({ x: 100, y: 100 });
@@ -52,12 +59,12 @@ describe("App", () => {
         app.clickPoint("A");
         app.clickPoint(points.find(name => name !== "A" && !app.model.hasEdge("A", name))!);
         expect(app.model.edges().length).toBe(MAX_EDGES);
-        expect(app.notice).toBe(notices.tooManyEdges);
+        expect(app.notice).toBe(notices.tooManyEdges(small));
         expect(app.selection).toEqual({ kind: "point", name: "A" });
     });
 
     it("reads from the list again when the graph outgrows the chosen matrix", () => {
-        const app = new App(new GraphModel({ matrix: { points: 2 }, incidence: { points: 2, cells: 2 } }));
+        const app = new App(new GraphModel({ ...LIMITS, matrix: { points: 2 }, incidence: { points: 2, cells: 2 } }));
         app.clear();
         app.addPoint({ x: 100, y: 100 });
         app.addPoint({ x: 200, y: 100 });
@@ -74,9 +81,9 @@ describe("App", () => {
         const points = Array.from({ length: 600 }, (_, i) => ({ name: "P" + i, x: 100, y: 100 }));
         store.set(STORAGE_KEY, JSON.stringify({ directed: false, points, edges: [] }));
 
-        const app = new App();
+        const app = new App(new GraphModel(small));
         expect(app.model.points().length).toBe(presets[0].data.points.length);
-        expect(app.notice).toBe(notices.savedTooBig);
+        expect(app.notice).toBe(notices.savedTooBig(small));
         expect(JSON.parse(store.get(STORAGE_KEY)!).points.length).toBe(presets[0].data.points.length);
     });
 
@@ -86,5 +93,45 @@ describe("App", () => {
         expect(app.model.points()).toEqual(["X"]);
         expect(app.model.directed).toBe(true);
         expect(app.notice).toBeNull();
+    });
+
+    it("saves a big generated graph as its recipe and makes the same graph again", () => {
+        const app = new App();
+        app.generate(SAVE_POINTS + 1);
+        const saved = JSON.parse(store.get(STORAGE_KEY)!);
+        expect(Object.keys(saved)).toEqual(["recipe"]);
+        expect(saved.recipe.points).toBe(SAVE_POINTS + 1);
+
+        const again = new App();
+        expect(again.model.toData()).toEqual(app.model.toData());
+        expect(again.recipe).toEqual(app.recipe);
+    });
+
+    it("stops following the recipe once the graph is edited", () => {
+        const app = new App();
+        app.generate(SAVE_POINTS + 1);
+        const recipe = store.get(STORAGE_KEY);
+        app.movePoint("1", { x: 5, y: 5 });
+        expect(app.recipe).toBeNull();
+        // the edited big graph is not saved, so the recipe saved before stays
+        expect(store.get(STORAGE_KEY)).toBe(recipe);
+    });
+
+    it("saves a small generated graph point by point", () => {
+        const app = new App();
+        app.generate(100);
+        expect(JSON.parse(store.get(STORAGE_KEY)!).points.length).toBe(100);
+    });
+
+    it("makes a generated graph directed by generating it again with the same points", () => {
+        const app = new App();
+        app.generate(100);
+        const before = app.model.toData();
+        const loads = app.loads;
+        app.setDirected(true);
+        expect(app.model.directed).toBe(true);
+        expect(app.model.toData().points).toEqual(before.points);
+        expect(app.model.edgeCount()).toBe(before.edges.length);
+        expect(app.loads).toBe(loads); // the view stays where it is
     });
 });

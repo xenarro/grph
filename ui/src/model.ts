@@ -35,20 +35,16 @@ export interface GraphData {
 // points can be anywhere, and the view zooms and moves to show them.
 export const VIEW = { width: 800, height: 560 };
 
-// The page draws every cell of both matrices, so it grows with the square of the number of points:
-// 100 points already take about 90,000 elements and a few hundred freeze the browser.
-// These limits keep the structures readable and the page fast.
-export const MAX_POINTS = 40;
-export const MAX_EDGES = 120;
-
 export class GraphTooBigError extends Error {}
 
-// The matrices are not built past these sizes.
-export const STRUCTURE_LIMITS = {
+export const LIMITS = {
+    // The whole graph. The adjacency list of 100,000 points and 300,000 edges takes about 50 MB.
+    graph: { points: 100_000, edges: 300_000 },
+    // The matrices are not built past these sizes.
     matrix: { points: 1_000 },                       // 1,000 × 1,000 cells: 8 MB
     incidence: { points: 1_000, cells: 3_000_000 },  // points × edges cells: about 36 MB
 };
-export type StructureLimits = typeof STRUCTURE_LIMITS;
+export type Limits = typeof LIMITS;
 export type MatrixId = Exclude<RepresentationId, "list">;
 
 // Bytes one cell takes, measured in Chrome's JavaScript engine (V8): the adjacency matrix
@@ -67,9 +63,9 @@ export class GraphModel {
     private builtMatrix: AdjacencyMatrix | null = new AdjacencyMatrix(false);
     private builtIncidence: IncidenceMatrix | null = new IncidenceMatrix(false);
     readonly positions = new Map<string, Position>();
-    readonly limits: StructureLimits;
+    readonly limits: Limits;
 
-    constructor(limits: StructureLimits = STRUCTURE_LIMITS) {
+    constructor(limits: Limits = LIMITS) {
         this.limits = limits;
     }
 
@@ -130,11 +126,11 @@ export class GraphModel {
     }
 
     canAddPoint(): boolean {
-        return this.pointCount() < MAX_POINTS;
+        return this.pointCount() < this.limits.graph.points;
     }
 
     canAddEdge(): boolean {
-        return this.edgeCount() < MAX_EDGES;
+        return this.edgeCount() < this.limits.graph.edges;
     }
 
     position(name: string): Position {
@@ -193,7 +189,7 @@ export class GraphModel {
     // throws a GraphTooBigError, before building anything, when the graph is over the limits
     load(data: GraphData): void {
         const names = new Set([...data.points.map(p => p.name), ...data.edges.flatMap(e => [e.from, e.to])]);
-        if (names.size > MAX_POINTS || data.edges.length > MAX_EDGES) {
+        if (names.size > this.limits.graph.points || data.edges.length > this.limits.graph.edges) {
             throw new GraphTooBigError(`${names.size} points and ${data.edges.length} edges is over the limit`);
         }
         // the list first, then the matrices the graph fits, converted from the list

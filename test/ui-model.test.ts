@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { GraphModel, GraphTooBigError, MAX_EDGES, MAX_POINTS, VIEW } from "../ui/src/model";
+import { GraphModel, GraphTooBigError, LIMITS, VIEW } from "../ui/src/model";
+
+// a small graph limit, so the limit tests stay quick
+const small = { ...LIMITS, graph: { points: 40, edges: 120 } };
+const MAX_POINTS = small.graph.points;
+const MAX_EDGES = small.graph.edges;
 import { presets } from "../ui/src/presets";
 
 describe("GraphModel", () => {
@@ -47,7 +52,7 @@ describe("GraphModel", () => {
     });
 
     it("stops adding points and edges at the limits", () => {
-        const model = new GraphModel();
+        const model = new GraphModel(small);
         for (let i = 0; i < MAX_POINTS; i++) {
             expect(model.canAddPoint()).toBe(true);
             model.addPoint(model.nextPointName(), { x: 0, y: 0 });
@@ -66,7 +71,7 @@ describe("GraphModel", () => {
     });
 
     it("refuses to load a graph over the limits without changing the current one", () => {
-        const model = new GraphModel();
+        const model = new GraphModel(small);
         model.load(presets[0].data);
         const points = Array.from({ length: MAX_POINTS + 1 }, (_, i) => ({ name: "P" + i, x: 0, y: 0 }));
         expect(() => model.load({ directed: false, points, edges: [] })).toThrow(GraphTooBigError);
@@ -78,7 +83,7 @@ describe("GraphModel", () => {
     });
 
     describe("matrices past their limits", () => {
-        const tiny = { matrix: { points: 3 }, incidence: { points: 3, cells: 4 } };
+        const tiny = { ...LIMITS, matrix: { points: 3 }, incidence: { points: 3, cells: 4 } };
 
         it("drops a matrix the graph outgrows and builds it again from the list", () => {
             const model = new GraphModel(tiny);

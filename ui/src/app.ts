@@ -1,13 +1,16 @@
 // State shared by every part of the page: the graph, the selection and the algorithm step on display.
 
 import { edgeKey, Step } from "../../src/algorithms/trace";
-import { GraphData, GraphModel, GraphTooBigError, MAX_EDGES, MAX_POINTS, Position, RepresentationId } from "./model";
+import { generate, randomSeed, Recipe } from "./generate";
+import { GraphData, GraphModel, GraphTooBigError, Limits, Position, RepresentationId } from "./model";
 import { presets } from "./presets";
 
+const count = (n: number) => n.toLocaleString("en-US");
+
 export const notices = {
-    tooManyPoints: `A graph here can have at most ${MAX_POINTS} points. Delete a point to add another.`,
-    tooManyEdges: `A graph here can have at most ${MAX_EDGES} edges. Delete an edge to add another.`,
-    savedTooBig: `The saved graph was too big to show (the limit is ${MAX_POINTS} points and ${MAX_EDGES} edges), so an example is shown instead.`,
+    tooManyPoints: ({ graph }: Limits) => `A graph here can have at most ${count(graph.points)} points. Delete a point to add another.`,
+    tooManyEdges: ({ graph }: Limits) => `A graph here can have at most ${count(graph.edges)} edges. Delete an edge to add another.`,
+    savedTooBig: ({ graph }: Limits) => `The saved graph was too big to show (the limit is ${count(graph.points)} points and ${count(graph.edges)} edges), so an example is shown instead.`,
 };
 
 export type Selection =
@@ -20,6 +23,10 @@ export type Change = "graph" | "positions" | "view";
 
 const STORAGE_KEY = "grph:graph";
 
+// Graphs up to this size are saved point by point. A bigger one does not fit in the browser's storage
+// (about 5 MB), so a generated graph is saved as its recipe instead, and edits to it are not kept.
+export const SAVE_POINTS = 5_000;
+
 export class App {
     readonly model: GraphModel;
     selection: Selection = null;
@@ -31,20 +38,27 @@ export class App {
     notice: string | null = null;
     // how many graphs have been loaded, so the drawing can fit each new one in view
     loads = 1;
+    // the recipe of a generated graph, until the graph is edited
+    recipe: Recipe | null = null;
     private readonly listeners: ((change: Change) => void)[] = [];
 
     constructor(model: GraphModel = new GraphModel()) {
         this.model = model;
         const saved = loadSaved();
         try {
-            this.model.load(saved ?? presets[0].data);
+            if (saved && "recipe" in saved) {
+                this.model.load(generate(saved.recipe));
+                this.recipe = saved.recipe;
+            } else {
+                this.model.load(saved ?? presets[0].data);
+            }
         } catch (error) {
             // The saved graph is not a valid graph, or too big to show without freezing the page.
             // Replace it, so the next visit doesn't load it again.
             this.model.load(presets[0].data);
-            save(this.model.toData());
+            store(this.model.toData());
             if (error instanceof GraphTooBigError) {
-                this.notice = notices.savedTooBig;
+                this.notice = notices.savedTooBig(this.model.limits);
             }
         }
     }
@@ -53,7 +67,8 @@ export class App {
         this.listeners.push(listener);
     }
 
-    private emit(change: Change, notice: string | null = null): void {
+    // `loaded` is true when a whole new graph was loaded, false for an edit
+    private emit(change: Change, notice: string | null = null, loaded = false): void {
         if (change === "graph") {
             // a recorded run no longer matches the changed graph
             this.step = null;
@@ -66,16 +81,30 @@ export class App {
             this.notice = notice;
         }
         if (change !== "view") {
-            save(this.model.toData());
+            if (!loaded) {
+                // an edited graph is no longer the graph its recipe makes
+                this.recipe = null;
+            }
+            this.save();
         }
         this.listeners.forEach(listener => listener(change));
+    }
+
+    // The graph is kept in this browser between visits: a small one point by point, a big generated one
+    // as its recipe. A big graph that was edited is not saved, so the graph saved before it stays.
+    private save(): void {
+        if (this.model.pointCount() <= SAVE_POINTS) {
+            store(this.model.toData());
+        } else if (this.recipe) {
+            store({ recipe: this.recipe });
+        }
     }
 
     // ---- editing
 
     addPoint(position: Position): void {
         if (!this.model.canAddPoint()) {
-            this.emit("view", notices.tooManyPoints);
+            this.emit("view", notices.tooManyPoints(this.model.limits));
             return;
         }
         this.model.addPoint(this.model.nextPointName(), position);
@@ -100,7 +129,7 @@ export class App {
                 this.emit("view");
             } else if (!this.model.canAddEdge()) {
                 // keep the first point selected, so deleting an edge and clicking again works
-                this.emit("view", notices.tooManyEdges);
+                this.emit("view", notices.tooManyEdges(this.model.limits));
             } else {
                 this.selection = { kind: "edge", from: selected.name, to: name };
                 this.model.addEdge(selected.name, name);
@@ -130,16 +159,32 @@ export class App {
     }
 
     setDirected(directed: boolean): void {
+        if (this.recipe) {
+            // a generated graph is generated again, so a directed one gets edges without cycles
+            const recipe = { ...this.recipe, directed };
+            this.load(generate(recipe), recipe, false);
+            return;
+        }
         this.model.setDirected(directed);
         this.selection = null;
         this.emit("graph");
     }
 
-    load(data: GraphData): void {
+    // `fit` shows the whole new graph; a graph generated again in place keeps the view
+    load(data: GraphData, recipe: Recipe | null = null, fit = true): void {
         this.model.load(data);
         this.selection = null;
-        this.loads++;
-        this.emit("graph");
+        this.recipe = recipe;
+        if (fit) {
+            this.loads++;
+        }
+        this.emit("graph", null, true);
+    }
+
+    // a random graph of this many points, with edges or arrows as the current graph has them
+    generate(points: number): void {
+        const recipe = { points, seed: randomSeed(), directed: this.model.directed };
+        this.load(generate(recipe), recipe);
     }
 
     clear(): void {
@@ -177,21 +222,22 @@ export class App {
     }
 }
 
-// The graph is kept in this browser between visits. Storage can be unavailable
-// (private windows, blocked site data), so failures fall back to the default example.
-// The App constructor checks that the saved data is a graph it can show.
-function save(data: GraphData): void {
+// Storage can be unavailable (private windows, blocked site data) or full, so failures
+// fall back to the default example. The App constructor checks that saved data is a graph it can show.
+type Saved = GraphData | { recipe: Recipe };
+
+function store(saved: Saved): void {
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
     } catch {
         // nothing to do: the graph just won't be restored next time
     }
 }
 
-function loadSaved(): GraphData | null {
+function loadSaved(): Saved | null {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        return raw ? JSON.parse(raw) as GraphData : null;
+        return raw ? JSON.parse(raw) as Saved : null;
     } catch {
         return null;
     }

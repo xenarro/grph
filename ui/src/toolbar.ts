@@ -2,6 +2,7 @@
 
 import { App } from "./app";
 import { h } from "./dom";
+import { GENERATED_SIZES } from "./generate";
 import { presets } from "./presets";
 
 export function mountToolbar(root: HTMLElement, app: App): void {
@@ -27,10 +28,21 @@ export function mountToolbar(root: HTMLElement, app: App): void {
         example.value = "";
     });
 
+    const random = h("select", { "aria-label": "Generate a random graph" }, [
+        h("option", { value: "" }, ["Random graph…"]),
+        ...GENERATED_SIZES.map(size => h("option", { value: size }, [`${size.toLocaleString("en-US")} points`])),
+    ]);
+    random.addEventListener("change", () => {
+        if (random.value) {
+            app.generate(Number(random.value));
+        }
+        random.value = "";
+    });
+
     const clear = h("button", { type: "button" }, ["Clear"]);
     clear.addEventListener("click", () => app.clear());
 
-    root.append(kind, example, clear);
+    root.append(kind, example, random, clear);
 
     const update = () => {
         directed.checked = app.model.directed;
