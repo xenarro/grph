@@ -7,11 +7,15 @@ import { h } from "./dom";
 export function mountInspector(root: HTMLElement, app: App): void {
     const render = () => {
         const selected = app.selection;
+        // why the last click did nothing, for example a limit was reached
+        const notice = app.notice && h("p", { class: "error", role: "alert" }, [app.notice]);
 
         if (!selected) {
-            root.replaceChildren(h("p", { class: "hint" }, [
-                "Click empty paper to add a point. Drag a point to move it. Click a point, then another one, to connect them.",
-            ]));
+            root.replaceChildren(
+                notice || h("p", { class: "hint" }, [
+                    "Click empty paper to add a point. Drag a point to move it. Click a point, then another one, to connect them.",
+                ]),
+            );
             return;
         }
 
@@ -20,7 +24,7 @@ export function mountInspector(root: HTMLElement, app: App): void {
             remove.addEventListener("click", () => app.deleteSelection());
             root.replaceChildren(
                 h("strong", {}, ["Point ", h("em", { class: "math" }, [selected.name])]),
-                h("p", { class: "hint" }, [`Click another point to connect ${selected.name} to it.`]),
+                notice || h("p", { class: "hint" }, [`Click another point to connect ${selected.name} to it.`]),
                 remove,
             );
             return;

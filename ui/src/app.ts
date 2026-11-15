@@ -1,8 +1,14 @@
 // State shared by every part of the page: the graph, the selection and the algorithm step on display.
 
 import { edgeKey, Step } from "../../src/algorithms/trace";
-import { GraphData, GraphModel, Position, RepresentationId } from "./model";
+import { GraphData, GraphModel, GraphTooBigError, MAX_EDGES, MAX_POINTS, Position, RepresentationId } from "./model";
 import { presets } from "./presets";
+
+export const notices = {
+    tooManyPoints: `A graph here can have at most ${MAX_POINTS} points. Delete a point to add another.`,
+    tooManyEdges: `A graph here can have at most ${MAX_EDGES} edges. Delete an edge to add another.`,
+    savedTooBig: `The saved graph was too big to show (the limit is ${MAX_POINTS} points and ${MAX_EDGES} edges), so an example is shown instead.`,
+};
 
 export type Selection =
     | { kind: "point"; name: string }
@@ -21,20 +27,36 @@ export class App {
     step: Step | null = null;
     // the representation the algorithm reads neighbors from
     readFrom: RepresentationId = "list";
+    // why the last action did nothing, shown until the next action
+    notice: string | null = null;
     private readonly listeners: ((change: Change) => void)[] = [];
 
     constructor() {
-        this.model.load(loadSaved() ?? presets[0].data);
+        const saved = loadSaved();
+        try {
+            this.model.load(saved ?? presets[0].data);
+        } catch (error) {
+            // The saved graph is not a valid graph, or too big to show without freezing the page.
+            // Replace it, so the next visit doesn't load it again.
+            this.model.load(presets[0].data);
+            save(this.model.toData());
+            if (error instanceof GraphTooBigError) {
+                this.notice = notices.savedTooBig;
+            }
+        }
     }
 
     on(listener: (change: Change) => void): void {
         this.listeners.push(listener);
     }
 
-    private emit(change: Change): void {
+    private emit(change: Change, notice: string | null = null): void {
         if (change === "graph") {
             // a recorded run no longer matches the changed graph
             this.step = null;
+        }
+        if (change !== "positions") {
+            this.notice = notice;
         }
         if (change !== "view") {
             save(this.model.toData());
@@ -45,6 +67,10 @@ export class App {
     // ---- editing
 
     addPoint(position: Position): void {
+        if (!this.model.canAddPoint()) {
+            this.emit("view", notices.tooManyPoints);
+            return;
+        }
         this.model.addPoint(this.model.nextPointName(), position);
         this.emit("graph");
     }
@@ -62,10 +88,14 @@ export class App {
         } else if (selected.name === name) {
             this.select(null);
         } else {
-            this.selection = { kind: "edge", from: selected.name, to: name };
             if (this.model.hasEdge(selected.name, name)) {
+                this.selection = { kind: "edge", from: selected.name, to: name };
                 this.emit("view");
+            } else if (!this.model.canAddEdge()) {
+                // keep the first point selected, so deleting an edge and clicking again works
+                this.emit("view", notices.tooManyEdges);
             } else {
+                this.selection = { kind: "edge", from: selected.name, to: name };
                 this.model.addEdge(selected.name, name);
                 this.emit("graph");
             }
@@ -138,6 +168,7 @@ export class App {
 
 // The graph is kept in this browser between visits. Storage can be unavailable
 // (private windows, blocked site data), so failures fall back to the default example.
+// The App constructor checks that the saved data is a graph it can show.
 function save(data: GraphData): void {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -149,12 +180,7 @@ function save(data: GraphData): void {
 function loadSaved(): GraphData | null {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) {
-            return null;
-        }
-        const data = JSON.parse(raw) as GraphData;
-        new GraphModel().load(data); // throws when the saved data is not a valid graph
-        return data;
+        return raw ? JSON.parse(raw) as GraphData : null;
     } catch {
         return null;
     }

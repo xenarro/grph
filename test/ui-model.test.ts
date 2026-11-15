@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GraphModel, VIEW } from "../ui/src/model";
+import { GraphModel, GraphTooBigError, MAX_EDGES, MAX_POINTS, VIEW } from "../ui/src/model";
 import { presets } from "../ui/src/presets";
 
 describe("GraphModel", () => {
@@ -44,6 +44,37 @@ describe("GraphModel", () => {
         model.addPoint("A", { x: 0, y: 0 });
         model.addPoint("C", { x: 0, y: 0 });
         expect(model.nextPointName()).toBe("B");
+    });
+
+    it("stops adding points and edges at the limits", () => {
+        const model = new GraphModel();
+        for (let i = 0; i < MAX_POINTS; i++) {
+            expect(model.canAddPoint()).toBe(true);
+            model.addPoint(model.nextPointName(), { x: 0, y: 0 });
+        }
+        expect(model.canAddPoint()).toBe(false);
+
+        const points = model.points();
+        for (let i = 0; i < points.length && model.edges().length < MAX_EDGES; i++) {
+            for (let j = i + 1; j < points.length && model.edges().length < MAX_EDGES; j++) {
+                expect(model.canAddEdge()).toBe(true);
+                model.addEdge(points[i], points[j]);
+            }
+        }
+        expect(model.edges().length).toBe(MAX_EDGES);
+        expect(model.canAddEdge()).toBe(false);
+    });
+
+    it("refuses to load a graph over the limits without changing the current one", () => {
+        const model = new GraphModel();
+        model.load(presets[0].data);
+        const points = Array.from({ length: MAX_POINTS + 1 }, (_, i) => ({ name: "P" + i, x: 0, y: 0 }));
+        expect(() => model.load({ directed: false, points, edges: [] })).toThrow(GraphTooBigError);
+
+        const edges = Array.from({ length: MAX_EDGES + 1 }, (_, i) => ({ from: "A", to: "B", weight: i + 1 }));
+        expect(() => model.load({ directed: false, points: [], edges })).toThrow(GraphTooBigError);
+
+        expect(model.points().length).toBe(presets[0].data.points.length);
     });
 
     it.each(presets)("loads the $name preset", preset => {

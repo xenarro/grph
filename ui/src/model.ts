@@ -29,6 +29,14 @@ export interface GraphData {
 // the drawing area, in SVG units
 export const VIEW = { width: 800, height: 560 };
 
+// The page draws every cell of both matrices, so it grows with the square of the number of points:
+// 100 points already take about 90,000 elements and a few hundred freeze the browser.
+// These limits keep the structures readable and the page fast.
+export const MAX_POINTS = 40;
+export const MAX_EDGES = 120;
+
+export class GraphTooBigError extends Error {}
+
 export class GraphModel {
     matrix = new AdjacencyMatrix(false);
     list = new AdjacencyList(false);
@@ -61,6 +69,14 @@ export class GraphModel {
 
     weight(nameX: string, nameY: string): number | undefined {
         return this.list.getNeighbors(nameX).find(n => n.name === nameY)?.weight;
+    }
+
+    canAddPoint(): boolean {
+        return this.points().length < MAX_POINTS;
+    }
+
+    canAddEdge(): boolean {
+        return this.edges().length < MAX_EDGES;
     }
 
     position(name: string): Position {
@@ -96,7 +112,12 @@ export class GraphModel {
         this.load({ ...this.toData(), directed });
     }
 
+    // throws a GraphTooBigError, before building anything, when the graph is over the limits
     load(data: GraphData): void {
+        const names = new Set([...data.points.map(p => p.name), ...data.edges.flatMap(e => [e.from, e.to])]);
+        if (names.size > MAX_POINTS || data.edges.length > MAX_EDGES) {
+            throw new GraphTooBigError(`${names.size} points and ${data.edges.length} edges is over the limit`);
+        }
         this.matrix = new AdjacencyMatrix(data.directed);
         this.list = new AdjacencyList(data.directed);
         this.incidence = new IncidenceMatrix(data.directed);
