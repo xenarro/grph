@@ -6,6 +6,12 @@ A TypeScript project for learning how graphs work. It stores a graph in three st
 
 ## The visualizer
 
+Try it online: **https://xenarro.github.io/grph/**
+
+Every push to `master` type-checks the code, runs the tests and publishes the visualizer to GitHub Pages (`.github/workflows/pages.yml`).
+
+To run it locally:
+
 ```sh
 npm install
 npm run dev     # then open the printed address, usually http://localhost:5173
