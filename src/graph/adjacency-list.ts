@@ -36,6 +36,11 @@ export default class AdjacencyList implements GraphInterface {
         return this;
     }
 
+    addPoints(names: string[]) {
+        names.forEach(name => this.addPoint(name));
+        return this;
+    }
+
     removePoint(name: string) {
         this.getList(name);
         this.graph.delete(name);

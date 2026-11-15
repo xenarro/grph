@@ -92,7 +92,7 @@ function matrixView(app: App): Node[] {
         h("summary", {}, [`Stored as one flat array of ${size * size} numbers`]),
         h("p", { class: "flat-array" }, [
             "[",
-            ...matrix.graph.flatMap((value, cell) => {
+            ...Array.from(matrix.graph).flatMap((value, cell) => {
                 const row = points[Math.floor(cell / size)];
                 const column = points[cell % size];
                 const number = h("span", {

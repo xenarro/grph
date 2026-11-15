@@ -44,6 +44,11 @@ export default class IncidenceMatrix implements GraphInterface {
         return this;
     }
 
+    addPoints(names: string[]) {
+        names.forEach(name => this.addPoint(name));
+        return this;
+    }
+
     removePoint(name: string) {
         const removed = this.getPoint(name);
 

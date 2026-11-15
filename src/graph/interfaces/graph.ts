@@ -15,6 +15,8 @@ export default interface Graph {
     readonly directed: boolean;
 
     addPoint(name: string): this;
+    // the same as addPoint for each name, in order; a matrix grows once for all of them
+    addPoints(names: string[]): this;
     removePoint(name: string): this;
     hasPoint(name: string): boolean;
     getPoints(): string[];

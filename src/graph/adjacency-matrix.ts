@@ -3,6 +3,9 @@
 // An undirected edge is stored twice: in [X][Y] and in [Y][X], so the matrix is symmetric.
 //
 // The matrix is stored as one flat array, row by row: cell [row][column] is graph[row * size + column].
+// It is a Float64Array: every cell takes exactly 8 bytes and holds any weight a JS number can.
+// A typed array has a fixed length, so adding or removing points builds a new array once
+// and copies the old rows into it.
 //
 // example (undirected, 3 points):
 //     p1,p2,p3
@@ -12,7 +15,7 @@
 //     1, 1, 0  // point 3
 //];
 //
-// Memory: size × size cells, whatever the number of edges.
+// Memory: size × size cells, whatever the number of edges: 8 MB for 1,000 points, 800 MB for 10,000.
 
 import Point from "./point";
 import GraphInterface from "./interfaces/graph";
@@ -21,45 +24,63 @@ import Neighbor from "./interfaces/neighbor";
 import { assertEdge, assertPointName, missingEdge, missingPoint } from "./validation";
 
 export default class AdjacencyMatrix implements GraphInterface {
-    readonly graph: number[];
+    // replaced by a bigger or smaller array when points are added or removed
+    graph: Float64Array;
     readonly points: Map<string, Point>;
     readonly directed: boolean;
 
     constructor(directed: boolean = false) {
-        this.graph = [];
+        this.graph = new Float64Array(0);
         this.points = new Map();
         this.directed = directed;
     }
 
     addPoint(name: string) {
-        assertPointName(name);
-        if (this.points.has(name)) {
+        return this.addPoints([name]);
+    }
+
+    // Adds a row and a column for every new point. The matrix is rebuilt once for all of them,
+    // so adding 1,000 points at once copies the cells once instead of 1,000 times.
+    addPoints(names: string[]) {
+        names.forEach(assertPointName);
+        const oldSize = this.points.size;
+        names.forEach(name => {
+            if (!this.points.has(name)) {
+                this.points.set(name, new Point(name, this.points.size));
+            }
+        });
+        const size = this.points.size;
+        if (size === oldSize) {
             return this;
         }
 
-        this.points.set(name, new Point(name, this.points.size));
-        const size = this.points.size;
-
-        // add a new column: insert a 0 at the end of every existing row
-        for (let row = 1; row < size; row++) {
-            this.graph.splice(size * row - 1, 0, 0);
+        // every old row keeps its cells at its start; the new columns and rows are zeros
+        const graph = new Float64Array(size * size);
+        for (let row = 0; row < oldSize; row++) {
+            graph.set(this.graph.subarray(row * oldSize, (row + 1) * oldSize), row * size);
         }
-        // add a new row
-        this.graph.push(...new Array(size).fill(0));
+        this.graph = graph;
         return this;
     }
 
     removePoint(name: string) {
-        const removed = this.getPoint(name);
-        const size = this.points.size;
+        const removed = this.getPoint(name).getIndex();
+        const oldSize = this.points.size;
+        const size = oldSize - 1;
 
-        // drop the point's row and column; its edges are removed with them
-        const kept = this.graph.filter((_, cell) => {
-            const row = Math.floor(cell / size);
-            const column = cell % size;
-            return row !== removed.getIndex() && column !== removed.getIndex();
-        });
-        this.graph.splice(0, this.graph.length, ...kept);
+        // copy every row except the point's, leaving out the point's column;
+        // its edges are removed with them
+        const graph = new Float64Array(size * size);
+        for (let row = 0, target = 0; row < oldSize; row++) {
+            if (row === removed) {
+                continue;
+            }
+            const start = row * oldSize;
+            graph.set(this.graph.subarray(start, start + removed), target * size);
+            graph.set(this.graph.subarray(start + removed + 1, start + oldSize), target * size + removed);
+            target++;
+        }
+        this.graph = graph;
 
         // points after the removed one move up by one row and column
         this.points.delete(name);

@@ -2,6 +2,7 @@ export { default as AdjacencyMatrix } from "./graph/adjacency-matrix";
 export { default as AdjacencyList } from "./graph/adjacency-list";
 export { default as IncidenceMatrix } from "./graph/incidence-matrix";
 export { default as Point } from "./graph/point";
+export { convert } from "./graph/convert";
 export type { default as Graph } from "./graph/interfaces/graph";
 export type { default as Edge } from "./graph/interfaces/edge";
 export type { default as Neighbor } from "./graph/interfaces/neighbor";
