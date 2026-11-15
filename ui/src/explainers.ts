@@ -1,8 +1,10 @@
-// How each algorithm works, shown under the player for the chosen algorithm.
+// How each algorithm works, in English and Ukrainian, shown for the algorithm chosen in the player.
 //
-// Text in `backticks` is shown as code. Each pseudocode line lists the step kinds it belongs to:
-// the names the algorithms give their steps (the `line` of Tracer.step), so during a run the line
+// Text in `backticks` is shown as code; names in backticks are the page's own labels, so they stay
+// in English. Each pseudocode line lists the step kinds it belongs to: the names the algorithms give their steps (the `line` of Tracer.step), so during a run the line
 // of the current step is highlighted. test/explainers.test.ts checks that every step kind has a line.
+
+import { Lang } from "./i18n";
 
 export interface PseudocodeLine {
     readonly text: string;
@@ -17,7 +19,6 @@ export interface Explainer {
     readonly idea: readonly string[];
     readonly pseudocode: readonly PseudocodeLine[];
     readonly pseudocodeNote?: string;
-    readonly typescript: string;
     readonly cost: readonly string[];
     readonly useWhen: readonly string[];
     readonly avoidWhen: readonly string[];
@@ -26,7 +27,7 @@ export interface Explainer {
 
 const line = (text: string, ...steps: string[]): PseudocodeLine => ({ text, steps });
 
-export const explainers: Readonly<Record<string, Explainer>> = {
+const en: Readonly<Record<string, Explainer>> = {
     dfs: {
         title: "Depth-first search",
         question: "Which points can I reach from here, and by what path?",
@@ -52,24 +53,6 @@ export const explainers: Readonly<Record<string, Explainer>> = {
             line("    point is done: go back", "back"),
         ],
         pseudocodeNote: "The pseudocode calls itself for every point. This page runs the same steps with a stack of its own, because a function that calls itself 100,000 levels deep runs out of JavaScript's call stack.",
-        typescript: `// every point reachable from start, in visiting order
-function dfs(graph: Graph, start: string): string[] {
-    const visited = new Set<string>();
-    const order: string[] = [];
-
-    const visit = (point: string) => {
-        visited.add(point);
-        order.push(point);
-        for (const { name } of graph.getNeighbors(point)) {
-            if (!visited.has(name)) {
-                visit(name);
-            }
-        }
-    };
-
-    visit(start);
-    return order;
-}`,
         cost: [
             "Every point is visited once and every edge looked at once, twice in an undirected graph: O(V + E) time with an adjacency list, for V points and E edges.",
             "The structure matters. Reading a point's neighbors in an adjacency matrix means reading its whole row of V cells, so the search costs O(V²) however few edges there are. An incidence matrix scans a column for every edge in the row: O(V × E).",
@@ -114,33 +97,6 @@ function dfs(graph: Graph, start: string): string[] {
             line("        put neighbor at the back of the queue", "reach"),
             line("path = follow came_from back from the target", "path"),
         ],
-        typescript: `// the path with the fewest edges, or null
-function bfs(graph: Graph, start: string, target: string) {
-    const cameFrom = new Map<string, string>();
-    const reached = new Set([start]);
-    const queue = [start];
-
-    // an index reads the queue from the front:
-    // shift() would move every item each time
-    for (let i = 0; i < queue.length; i++) {
-        const point = queue[i];
-        if (point === target) {
-            const path = [target];
-            while (path[0] !== start) {
-                path.unshift(cameFrom.get(path[0])!);
-            }
-            return path;
-        }
-        for (const { name } of graph.getNeighbors(point)) {
-            if (!reached.has(name)) {
-                reached.add(name);
-                cameFrom.set(name, point);
-                queue.push(name);
-            }
-        }
-    }
-    return null;
-}`,
         cost: [
             "O(V + E) time with an adjacency list, like depth-first search, and O(V²) with an adjacency matrix.",
             "Memory: O(V). The queue can hold a whole ring of points at once.",
@@ -187,44 +143,6 @@ function bfs(graph: Graph, start: string, target: string) {
             line("            put neighbor in the queue at distance d", "nearer"),
             line("path = follow came_from back from the target", "path"),
         ],
-        typescript: `// the lightest path from start to target, or null
-// (no weight may be negative)
-function dijkstra(graph: Graph, start: string, target: string) {
-    const distance = new Map([[start, 0]]);
-    const cameFrom = new Map<string, string>();
-    const finished = new Set<string>();
-    const queue = new Set([start]); // waiting to be finished
-    const dist = (p: string) => distance.get(p) ?? Infinity;
-
-    while (queue.size > 0) {
-        // the nearest waiting point: a scan here,
-        // a binary heap in this app
-        const point = [...queue].reduce(
-            (a, b) => (dist(a) <= dist(b) ? a : b));
-        queue.delete(point);
-        finished.add(point);
-        if (point === target) {
-            break;
-        }
-        const edges = graph.getNeighbors(point);
-        for (const { name, weight } of edges) {
-            const d = dist(point) + weight;
-            if (!finished.has(name) && d < dist(name)) {
-                distance.set(name, d);
-                cameFrom.set(name, point);
-                queue.add(name);
-            }
-        }
-    }
-    if (!finished.has(target)) {
-        return null;
-    }
-    const path = [target];
-    while (path[0] !== start) {
-        path.unshift(cameFrom.get(path[0])!);
-    }
-    return { path, weight: distance.get(target)! };
-}`,
         cost: [
             "With a binary heap and an adjacency list: O((V + E) log V). Taking the nearest point costs about log₂ V steps, 17 for 100,000 points, instead of a look at every waiting point. This app keeps its queue that way (`priority-queue.ts`).",
             "With the simple scan in the code above: O(V²). For a dense graph, where E is close to V², that is just as good, and an adjacency matrix suits it well.",
@@ -271,7 +189,297 @@ function dijkstra(graph: Graph, start: string, target: string) {
             line("    take point off the stack: it is finished", "finish"),
             line("    put point at the front of the order", "finish"),
         ],
-        typescript: `// an order in which every edge goes forward,
+        cost: [
+            "O(V + E) with an adjacency list: one depth-first search over the whole graph.",
+            "Another way, Kahn's algorithm, keeps taking a point that no remaining edge leads to. It gives an order too, and finds a cycle when no such point is left.",
+        ],
+        useWhen: [
+            "The edges mean \"must come before\", and you need one order that respects all of them.",
+            "You want to know whether the dependencies go round in a circle.",
+        ],
+        avoidWhen: [
+            "The graph is undirected: \"before\" needs a direction.",
+            "You need the best order by some cost: any order that respects the edges is all it promises.",
+        ],
+        tryIt: [
+            "Load `Getting dressed` and run it: socks come before shoes, the shirt before the tie.",
+            "Load `Directed cycle` and run it: the search finds the cycle instead.",
+        ],
+    },
+};
+
+const uk: Readonly<Record<string, Explainer>> = {
+    dfs: {
+        title: "Пошук у глибину",
+        question: "До яких вершин звідси можна дістатися і яким шляхом?",
+        uses: [
+            "Прохід лабіринту: йти одним коридором до кінця, потім повернутися до останнього розгалуження і спробувати наступний.",
+            "Пошук усього, що пов'язане з вершиною: файли в теці, сторінки, до яких можна дійти за посиланнями, пікселі, які зафарбує «заливка» в графічному редакторі.",
+            "Пошук циклів і впорядкування задач: топологічне сортування — це пошук у глибину.",
+        ],
+        idea: [
+            "Іди якомога глибше. З поточної вершини переходь першим ребром до вершини, де ще не був, і продовжуй. Коли всіх сусідів вершини вже відвідано, вона готова: повертайся до вершини, з якої прийшов, і пробуй її наступне ребро.",
+            "Вершини, в яких ти зараз «усередині», утворюють стек, найновіша — згори. Перехід углиб кладе вершину на стек, завершення знімає її. Коли знайдено ціль, стек і є шляхом від старту до неї.",
+            "Це якийсь шлях, а не найкоротший: він залежить від того, які ребра випадково перевірено першими.",
+        ],
+        pseudocode: [
+            line("dfs(старт)", "start"),
+            line(""),
+            line("dfs(вершина):"),
+            line("    позначити вершину як відвідану", "visit", "target"),
+            line("    якщо вершина — ціль: зупинитися", "target"),
+            line("    для кожного сусіда вершини:"),
+            line("        якщо сусіда відвідано: пропустити", "skip"),
+            line("        інакше: dfs(сусід)", "deeper"),
+            line("    вершина готова: повернутися назад", "back"),
+        ],
+        pseudocodeNote: "Псевдокод викликає сам себе для кожної вершини. Ця сторінка виконує ті самі кроки з власним стеком, бо функція, що викликає себе на глибину 100 000, вичерпує стек викликів JavaScript.",
+        cost: [
+            "Кожну вершину відвідано один раз і кожне ребро переглянуто один раз, у неорієнтованому графі — двічі: час O(V + E) зі списком суміжності, де V — кількість вершин, а E — ребер.",
+            "Структура має значення. Щоб прочитати сусідів вершини в матриці суміжності, треба прочитати весь її рядок із V клітинок, тож пошук коштує O(V²), хоч би скільки було ребер. Матриця інцидентності для кожного ребра в рядку переглядає його стовпець: O(V × E).",
+            "Пам'ять: O(V) — для відвіданих вершин і стеку.",
+        ],
+        useWhen: [
+            "Треба дізнатися, чи можна дістатися з однієї вершини до іншої, або знайти всі, до яких можна.",
+            "Підійде будь-який шлях, або хочеться спершу дослідити вглиб: головоломки, лабіринти, ходи в грі.",
+            "Шукаєш цикли чи впорядковуєш залежності.",
+        ],
+        avoidWhen: [
+            "Потрібен найкоротший шлях. Пошук у глибину може далеко забрести, перш ніж знайде ціль: для найменшої кількості ребер бери пошук у ширину, для найменшої сумарної ваги — алгоритм Дейкстри.",
+        ],
+        tryIt: [
+            "Завантаж `Small network`, зроби A стартом, а C — ціллю, і запусти: шлях буде A → B → D → C, хоча A–C — це одне ребро. Потім запусти `Breadth-first search` для тих самих двох вершин.",
+            "Перемкни `Read neighbors from` на матрицю суміжності й запусти ще раз: матриця віддає сусідів у порядку вершин, тож порядок обходу може змінитися.",
+        ],
+    },
+
+    bfs: {
+        title: "Пошук у ширину",
+        question: "Який шлях звідси має найменше ребер?",
+        uses: [
+            "Ступені знайомства в соцмережі: друзі, потім друзі друзів і так далі.",
+            "Найменша кількість ходів у головоломці чи на ігровому полі, де всі ходи рівноцінні.",
+            "Обхід сайту чи мережі рівень за рівнем, від найближчого.",
+        ],
+        idea: [
+            "Розходься кільцями, як хвилі по воді: спершу всі сусіди старту, на відстані одного ребра; потім усі їхні нові сусіди, на відстані двох ребер, і так далі.",
+            "Порядок тримає черга. Щойно досягнута вершина стає в кінець, а наступна для відвідування виходить з початку. Тож вершини виходять у порядку відстані, і коли вершину досягнуто вперше, то шляхом із найменшою кількістю ребер.",
+            "Кожна досягнута вершина пам'ятає, з якої вершини її досягли, — у `came_from`. Якщо йти цими посиланнями назад від цілі, вийде шлях.",
+        ],
+        pseudocode: [
+            line("distance[старт] = 0; черга = [старт]", "start"),
+            line("поки черга не порожня:"),
+            line("    вершина = взяти першу вершину з черги", "take"),
+            line("    для кожного сусіда вершини:"),
+            line("        якщо сусід має відстань: пропустити", "skip"),
+            line("        distance[сусід] = distance[вершина] + 1", "reach", "target"),
+            line("        came_from[сусід] = вершина", "reach", "target"),
+            line("        якщо сусід — ціль: зупинитися", "target"),
+            line("        поставити сусіда в кінець черги", "reach"),
+            line("шлях = іти по came_from назад від цілі", "path"),
+        ],
+        cost: [
+            "O(V + E) часу зі списком суміжності, як і в пошуку в глибину, та O(V²) з матрицею суміжності.",
+            "Пам'ять: O(V). Черга може одночасно тримати ціле кільце вершин.",
+        ],
+        useWhen: [
+            "Усі ребра рівноцінні, або важлива лише кількість кроків.",
+            "Потрібні вершини в порядку того, скільки ребер до них.",
+        ],
+        avoidWhen: [
+            "Ребра мають різну вагу — відстань, час чи ціну: шлях із найменшою кількістю ребер може виявитися важчим. Бери алгоритм Дейкстри.",
+        ],
+        tryIt: [
+            "Завантаж `Detour`, зроби A стартом, а D — ціллю, і запусти: пошук піде одним ребром A–D вагою 9. Потім запусти `Shortest path (Dijkstra)`: він обійде через B і C із сумою 6.",
+            "На прикладі `10,000 points` обери старт посередині й прокрути кілька сотень перших кроків: досягнуті вершини розходяться кільце за кільцем.",
+        ],
+    },
+
+    dijkstra: {
+        title: "Алгоритм Дейкстри",
+        question: "Який шлях звідси найлегший: найкоротша відстань, найменший час, найнижча ціна?",
+        uses: [
+            "Навігатори: дороги з вагою в кілометрах чи хвилинах.",
+            "Маршрутизація в інтернеті: маршрутизатори шукають найдешевший шлях через мережу (OSPF).",
+            "Пошук шляху в іграх і роботах. A*, що працює в більшості ігор, — це алгоритм Дейкстри з підказкою, у який бік ціль.",
+        ],
+        idea: [
+            "Кожна вершина має відстань — вагу найлегшого знайденого досі шляху до неї. Старт має 0, усі інші — ∞.",
+            "Щоразу бери найближчу вершину, яку ще не завершено. Її відстань остаточна: будь-який інший шлях до неї проходить через вершину, яка вже щонайменше так само далеко, а ваги не бувають від'ємними, тож такий шлях може бути лише важчим.",
+            "Потім пробуй її ребра. Якщо шлях через неї робить сусіда ближчим — коли `distance[point] + weight < distance[neighbor]`, — сусід отримує меншу відстань і запам'ятовує, звідки його досягли. Це називається релаксацією ребра.",
+            "Вершини, що чекають на завершення, лежать у черзі з пріоритетом, найближча — першою. Коли з черги виходить ціль, найлегший шлях до неї відомий.",
+        ],
+        pseudocode: [
+            line("distance[старт] = 0; усі інші відстані = ∞", "start"),
+            line("черга = [старт], найближча першою", "start"),
+            line("поки черга не порожня:"),
+            line("    вершина = взяти найближчу вершину з черги", "take", "target"),
+            line("    якщо вершина — ціль: зупинитися", "target"),
+            line("    для кожного ребра від вершини до сусіда з вагою w:"),
+            line("        якщо сусіда завершено: пропустити", "skip"),
+            line("        d = distance[вершина] + w", "nearer", "keep"),
+            line("        якщо d < distance[сусід]:", "nearer", "keep"),
+            line("            distance[сусід] = d", "nearer"),
+            line("            came_from[сусід] = вершина", "nearer"),
+            line("            поставити сусіда в чергу з відстанню d", "nearer"),
+            line("шлях = іти по came_from назад від цілі", "path"),
+        ],
+        cost: [
+            "З бінарною купою і списком суміжності: O((V + E) log V). Взяти найближчу вершину коштує близько log₂ V кроків — 17 для 100 000 вершин, — а не перегляд усіх, хто чекає. Саме так ця сторінка тримає свою чергу (`priority-queue.ts`).",
+            "З простим переглядом, як у коді вище: O(V²). Для щільного графа, де E близько до V², це так само добре, і матриця суміжності тут дуже доречна.",
+            "Пам'ять: O(V) — для відстаней, посилань назад і черги.",
+        ],
+        useWhen: [
+            "Ребра мають нульову чи додатну вагу: довжини, час, ціни.",
+            "Потрібен найлегший шлях до однієї цілі або до всіх вершин одразу: без цілі темні ребра наприкінці утворюють дерево найлегших шляхів від старту.",
+        ],
+        avoidWhen: [
+            "Усі ребра рівноцінні: пошук у ширину дасть ту саму відповідь простіше.",
+            "Деякі ваги від'ємні, як-от повернення грошей чи виграш: завершена вершина могла б пізніше стати легшою, і відповідь буде хибною. Бери алгоритм Беллмана — Форда.",
+            "Відомо, де ціль, як на мапі: A* використовує це й переглядає набагато менше вершин.",
+        ],
+        tryIt: [
+            "Завантаж `Detour`, зроби A стартом, а D — ціллю, і пройди кроками: спершу D отримує 9 прямим ребром, а потім піднімається в черзі до 6, коли шлях через B і C виявляється легшим.",
+            "На прикладі `100,000 points` обери дві далекі вершини й перейди на останній крок: темна область — усе, що алгоритму довелося завершити, перш ніж він дійшов до цілі.",
+        ],
+    },
+
+    "topological-sort": {
+        title: "Топологічне сортування",
+        question: "У якому порядку виконувати задачі, якщо одні мають іти перед іншими?",
+        uses: [
+            "Системи збирання й менеджери пакетів: збирати чи встановлювати кожну частину після тих, від яких вона залежить.",
+            "Навчальні плани: брати кожен курс після тих, що йому передують.",
+            "Електронні таблиці: обчислювати кожну клітинку після клітинок, які використовує її формула.",
+        ],
+        idea: [
+            "Намалюй кожне «має бути раніше» орієнтованим ребром. Топологічний порядок перелічує вершини так, що кожне ребро веде від раннішої вершини до пізнішої.",
+            "Запускай пошук у глибину з кожної ще не відвіданої вершини. Вершина завершується лише тоді, коли завершено все, досяжне з неї, тож завершену вершину можна ставити на початок порядку: усе, що має йти після неї, уже стоїть за нею.",
+            "Якщо пошук доходить до вершини, яка ще лежить на стеку, ребро веде назад у поточний шлях: у графі є цикл — A раніше за B, а B раніше за A, — і порядку не існує.",
+        ],
+        pseudocode: [
+            line("для кожної незавершеної вершини:", "root"),
+            line("    visit(вершина)", "root"),
+            line(""),
+            line("visit(вершина):"),
+            line("    покласти вершину на стек", "visit"),
+            line("    для кожного ребра від вершини до next:"),
+            line("        якщо next на стеку: це цикл, зупинитися", "cycle"),
+            line("        якщо next завершена: пропустити", "skip"),
+            line("        інакше: visit(next)", "deeper"),
+            line("    зняти вершину зі стеку: вона завершена", "finish"),
+            line("    поставити вершину на початок порядку", "finish"),
+        ],
+        cost: [
+            "O(V + E) зі списком суміжності: один пошук у глибину по всьому графу.",
+            "Інший спосіб, алгоритм Кана, раз у раз бере вершину, до якої не веде жодне з решти ребер. Він теж дає порядок і знаходить цикл, коли таких вершин не лишається.",
+        ],
+        useWhen: [
+            "Ребра означають «має бути раніше», і потрібен один порядок, що поважає їх усі.",
+            "Хочеш перевірити, чи не йдуть залежності по колу.",
+        ],
+        avoidWhen: [
+            "Граф неорієнтований: «раніше» потребує напрямку.",
+            "Потрібен найкращий порядок за якоюсь ціною: алгоритм обіцяє лише якийсь порядок, що поважає ребра.",
+        ],
+        tryIt: [
+            "Завантаж `Getting dressed` і запусти: шкарпетки йдуть перед взуттям, сорочка — перед краваткою.",
+            "Завантаж `Directed cycle` і запусти: пошук натомість знаходить цикл.",
+        ],
+    },
+};
+
+export const explainers: Readonly<Record<Lang, Readonly<Record<string, Explainer>>>> = { en, uk };
+
+// The same TypeScript for every language: code is code, and it is tested once (test/explainers.test.ts).
+export const algorithmCode: Readonly<Record<string, string>> = {
+    dfs: `// every point reachable from start, in visiting order
+function dfs(graph: Graph, start: string): string[] {
+    const visited = new Set<string>();
+    const order: string[] = [];
+
+    const visit = (point: string) => {
+        visited.add(point);
+        order.push(point);
+        for (const { name } of graph.getNeighbors(point)) {
+            if (!visited.has(name)) {
+                visit(name);
+            }
+        }
+    };
+
+    visit(start);
+    return order;
+}`,
+
+    bfs: `// the path with the fewest edges, or null
+function bfs(graph: Graph, start: string, target: string) {
+    const cameFrom = new Map<string, string>();
+    const reached = new Set([start]);
+    const queue = [start];
+
+    // an index reads the queue from the front:
+    // shift() would move every item each time
+    for (let i = 0; i < queue.length; i++) {
+        const point = queue[i];
+        if (point === target) {
+            const path = [target];
+            while (path[0] !== start) {
+                path.unshift(cameFrom.get(path[0])!);
+            }
+            return path;
+        }
+        for (const { name } of graph.getNeighbors(point)) {
+            if (!reached.has(name)) {
+                reached.add(name);
+                cameFrom.set(name, point);
+                queue.push(name);
+            }
+        }
+    }
+    return null;
+}`,
+
+    dijkstra: `// the lightest path from start to target, or null
+// (no weight may be negative)
+function dijkstra(graph: Graph, start: string, target: string) {
+    const distance = new Map([[start, 0]]);
+    const cameFrom = new Map<string, string>();
+    const finished = new Set<string>();
+    const queue = new Set([start]); // waiting to be finished
+    const dist = (p: string) => distance.get(p) ?? Infinity;
+
+    while (queue.size > 0) {
+        // the nearest waiting point: a scan here,
+        // a binary heap in this app
+        const point = [...queue].reduce(
+            (a, b) => (dist(a) <= dist(b) ? a : b));
+        queue.delete(point);
+        finished.add(point);
+        if (point === target) {
+            break;
+        }
+        const edges = graph.getNeighbors(point);
+        for (const { name, weight } of edges) {
+            const d = dist(point) + weight;
+            if (!finished.has(name) && d < dist(name)) {
+                distance.set(name, d);
+                cameFrom.set(name, point);
+                queue.add(name);
+            }
+        }
+    }
+    if (!finished.has(target)) {
+        return null;
+    }
+    const path = [target];
+    while (path[0] !== start) {
+        path.unshift(cameFrom.get(path[0])!);
+    }
+    return { path, weight: distance.get(target)! };
+}`,
+
+    "topological-sort": `// an order in which every edge goes forward,
 // or null when the graph has a cycle
 function topologicalSort(graph: Graph): string[] | null {
     const finished = new Set<string>();
@@ -302,21 +510,4 @@ function topologicalSort(graph: Graph): string[] | null {
     }
     return order;
 }`,
-        cost: [
-            "O(V + E) with an adjacency list: one depth-first search over the whole graph.",
-            "Another way, Kahn's algorithm, keeps taking a point that no remaining edge leads to. It gives an order too, and finds a cycle when no such point is left.",
-        ],
-        useWhen: [
-            "The edges mean \"must come before\", and you need one order that respects all of them.",
-            "You want to know whether the dependencies go round in a circle.",
-        ],
-        avoidWhen: [
-            "The graph is undirected: \"before\" needs a direction.",
-            "You need the best order by some cost: any order that respects the edges is all it promises.",
-        ],
-        tryIt: [
-            "Load `Getting dressed` and run it: socks come before shoes, the shirt before the tie.",
-            "Load `Directed cycle` and run it: the search finds the cycle instead.",
-        ],
-    },
 };

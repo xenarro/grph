@@ -3,6 +3,7 @@
 import { algorithms, getAlgorithm } from "../../src/algorithms";
 import { edgeKey, Step } from "../../src/algorithms/trace";
 import { generate, randomSeed, Recipe } from "./generate";
+import { Lang, saveLang, savedLang } from "./i18n";
 import { GraphData, GraphModel, GraphTooBigError, Limits, Position, RepresentationId } from "./model";
 import { bigExamples, presets } from "./presets";
 
@@ -43,6 +44,8 @@ export class App {
     recipe: Recipe | null = null;
     // the algorithm chosen in the player, whose explanation is shown
     algorithm: string = algorithms[0].id;
+    // the language of the explanations and descriptions; the rest of the page is in English
+    lang: Lang = savedLang();
     // the point a search ends at, null for none; see `start` for where it begins
     target: string | null = null;
     private chosenStart: string | null = null;
@@ -279,6 +282,12 @@ export class App {
             this.selection = null;
         }
         this.emit("view", notice);
+    }
+
+    setLang(lang: Lang): void {
+        this.lang = lang;
+        saveLang(lang);
+        this.emit("view");
     }
 
     // throws for an id no algorithm has

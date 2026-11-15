@@ -3,6 +3,7 @@
 import { App } from "./app";
 import { h } from "./dom";
 import { GENERATED_SIZES } from "./generate";
+import { Lang, LANGUAGES, texts } from "./i18n";
 import { bigExamples, presets } from "./presets";
 
 export function mountToolbar(root: HTMLElement, app: App): void {
@@ -40,7 +41,15 @@ export function mountToolbar(root: HTMLElement, app: App): void {
     const clear = h("button", { type: "button" }, ["Clear"]);
     clear.addEventListener("click", () => app.clear());
 
-    root.append(kind, example, random, clear);
+    // the language of the explanations; each name is written in its own language
+    const language = h("select", { "aria-label": texts[app.lang].explanationsLanguage },
+        LANGUAGES.map(({ id, name }) => h("option", { value: id, lang: id, selected: id === app.lang }, [name])));
+    language.addEventListener("change", () => {
+        app.setLang(language.value as Lang);
+        language.setAttribute("aria-label", texts[app.lang].explanationsLanguage);
+    });
+
+    root.append(kind, example, random, clear, language);
 
     const update = () => {
         directed.checked = app.model.directed;

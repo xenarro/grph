@@ -7,7 +7,8 @@ import { dijkstra } from "../src/algorithms/dijkstra";
 import { topologicalSort } from "../src/algorithms/topological-sort";
 import AdjacencyList from "../src/graph/adjacency-list";
 import Graph from "../src/graph/interfaces/graph";
-import { explainers } from "../ui/src/explainers";
+import { algorithmCode, explainers } from "../ui/src/explainers";
+import { LANGUAGES } from "../ui/src/i18n";
 import { presets } from "../ui/src/presets";
 
 // every kind of step an algorithm records on the examples, with and without a target
@@ -36,17 +37,21 @@ function stepKinds(id: string): Set<string> {
     return kinds;
 }
 
-describe("explainers", () => {
+describe.each(LANGUAGES.map(({ id }) => [id]))("explainers in %s", lang => {
     it.each(algorithms.map(a => [a.id]))("explain %s", id => {
-        const explainer = explainers[id];
+        const explainer = explainers[lang as "en" | "uk"][id];
         expect(explainer).toBeDefined();
         for (const field of [explainer.uses, explainer.idea, explainer.cost, explainer.useWhen, explainer.avoidWhen, explainer.tryIt]) {
             expect(field.length).toBeGreaterThan(0);
         }
+        // both languages say as much: the same number of points in each part
+        for (const part of ["uses", "idea", "cost", "useWhen", "avoidWhen", "tryIt", "pseudocode"] as const) {
+            expect(explainer[part].length).toBe(explainers.en[id][part].length);
+        }
     });
 
     it.each(algorithms.map(a => [a.id]))("have a pseudocode line for every kind of step of %s, and no others", id => {
-        const inPseudocode = new Set(explainers[id].pseudocode.flatMap(line => line.steps ?? []));
+        const inPseudocode = new Set(explainers[lang as "en" | "uk"][id].pseudocode.flatMap(line => line.steps ?? []));
         const recorded = stepKinds(id);
         expect([...recorded].filter(kind => !inPseudocode.has(kind))).toEqual([]);
         expect([...inPseudocode].filter(kind => !recorded.has(kind))).toEqual([]);
@@ -54,7 +59,7 @@ describe("explainers", () => {
 
     it("only suggest examples that exist", () => {
         const names = new Set(presets.map(p => p.name));
-        const suggested = Object.values(explainers).flatMap(e => e.tryIt.join(" ").match(/`([^`]+)`/g) ?? [])
+        const suggested = Object.values(explainers[lang as "en" | "uk"]).flatMap(e => e.tryIt.join(" ").match(/`([^`]+)`/g) ?? [])
             .map(code => code.slice(1, -1))
             .filter(name => /^[A-Z]/.test(name) && !algorithms.some(a => a.name === name) && !/points$/.test(name) && name !== "Read neighbors from");
         expect(suggested.filter(name => !names.has(name))).toEqual([]);
@@ -64,7 +69,7 @@ describe("explainers", () => {
 // The TypeScript on the page, run for real: types stripped by Node, then compared with this library.
 
 const example = (id: string, name: string): (...args: any[]) => any =>
-    new Function(`${stripTypeScriptTypes(explainers[id].typescript)}\nreturn ${name};`)();
+    new Function(`${stripTypeScriptTypes(algorithmCode[id])}\nreturn ${name};`)();
 
 function random(seed: number) {
     return () => {

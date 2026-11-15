@@ -529,13 +529,13 @@ em.math {
 }
 
 .explainer-box > summary::after {
-    content: "Show";
+    content: attr(data-show);
     color: var(--pencil);
     font-size: 13px;
 }
 
 .explainer-box[open] > summary::after {
-    content: "Hide";
+    content: attr(data-hide);
 }
 
 .explainer-kicker {
@@ -1150,18 +1150,18 @@ button.play {
 
 /* fields that keep their width whatever their options say, so the row doesn't reflow */
 #algorithm {
-    width: 13em;
+    width: 14.5em;
 }
 
 #read-from {
-    width: 11.5em;
+    width: 11em;
 }
 
 #start,
 #target,
 #start-name,
 #target-name {
-    width: 6em;
+    width: 5.5em;
 }
 
 /* on a low screen the description gives its room to the replay; "How it works" says the same and more */

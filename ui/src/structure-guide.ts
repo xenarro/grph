@@ -4,13 +4,16 @@
 import { App } from "./app";
 import { classes, h } from "./dom";
 import { bullets, paragraph, section, typescript } from "./explainer";
-import { count, formatBytes } from "./format";
-import { BYTES_PER_CELL, BYTES_PER_LIST_ITEM, RepresentationId, representationNames } from "./model";
-import { structureExplainers } from "./structure-explainers";
+import { count, formatBytes, Lang, texts } from "./i18n";
+import { BYTES_PER_CELL, BYTES_PER_LIST_ITEM, RepresentationId } from "./model";
+import { structureCode, structureExplainers } from "./structure-explainers";
 
 const ORDER: RepresentationId[] = ["matrix", "list", "incidence"];
 
 export function comparisonView(app: App): HTMLElement {
+    const { lang } = app;
+    const t = texts[lang];
+    const n = (value: number) => count(value, lang);
     const points = app.model.pointCount();
     const edges = app.model.edgeCount();
     const directed = app.model.directed;
@@ -25,18 +28,19 @@ export function comparisonView(app: App): HTMLElement {
         list: (points + entries) * BYTES_PER_LIST_ITEM,
         incidence: points * edges * BYTES_PER_CELL.incidence,
     };
+    const { how } = t;
     // for each operation, the work in the matrix, the list and the incidence matrix: [how, how much]
-    const rows: [string, [string, number][]][] = [
-        ["Memory", [
-            [`V² cells × ${BYTES_PER_CELL.matrix} B`, bytes.matrix],
-            [`(V + ${twoE}) × ≈ ${BYTES_PER_LIST_ITEM} B`, bytes.list],
-            [`V × E cells × ${BYTES_PER_CELL.incidence} B`, bytes.incidence],
-        ]],
-        ["Is X–Y an edge?", [["1 cell", 1], ["X's list, ≈ " + count(perPoint), perPoint], ["up to E columns", edges]]],
-        ["All neighbors of X", [["X's row: V cells", points], ["X's list, ≈ " + count(perPoint), perPoint], ["E cells + V per neighbor", edges + perPoint * points]]],
-        ["Add a point", [["copy (V + 1)² cells", (points + 1) ** 2], ["1 empty list", 1], ["a row of E zeros", edges]]],
-        ["Add an edge", [[directed ? "1 cell" : "2 cells", directed ? 1 : 2], [directed ? "1 entry" : "2 entries", directed ? 1 : 2], ["a column of V cells", points]]],
-        ["Search all of it (DFS, BFS)", [["V² cells", points * points], [`V + ${twoE} entries`, points + entries], ["≈ V × E cells", points * edges]]],
+    const rows: [string, [string, number][], boolean][] = [
+        [t.rows.memory, [
+            [how.matrixMemory(BYTES_PER_CELL.matrix), bytes.matrix],
+            [how.listMemory(twoE, BYTES_PER_LIST_ITEM), bytes.list],
+            [how.incidenceMemory(BYTES_PER_CELL.incidence), bytes.incidence],
+        ], true],
+        [t.rows.isEdge, [[how.oneCell, 1], [how.xList(perPoint), perPoint], [how.upToEColumns, edges]], false],
+        [t.rows.neighbors, [[how.xRow, points], [how.xList(perPoint), perPoint], [how.incidenceNeighbors, edges + perPoint * points]], false],
+        [t.rows.addPoint, [[how.copyMatrix, (points + 1) ** 2], [how.emptyList, 1], [how.zerosRow, edges]], false],
+        [t.rows.addEdge, [[how.cells(directed ? 1 : 2), directed ? 1 : 2], [how.entries(directed ? 1 : 2), directed ? 1 : 2], [how.cellsColumn, points]], false],
+        [t.rows.searchAll, [[how.matrixSearch, points * points], [how.listSearch(twoE), points + entries], [how.incidenceSearch, points * edges]], false],
     ];
 
     const possible = directed ? points * (points - 1) : points * (points - 1) / 2;
@@ -46,34 +50,32 @@ export function comparisonView(app: App): HTMLElement {
     const percent = (x: number) => {
         const p = x * 100;
         if (p > 0 && p < 1) {
-            return `${Number(p.toPrecision(2))}%`;
+            return `${n(Number(p.toPrecision(2)))}%`;
         }
         if (p > 99 && p < 100) {
-            return `${Number((100 - Number((100 - p).toPrecision(2))).toFixed(6))}%`;
+            return `${(100 - Number((100 - p).toPrecision(2))).toLocaleString(lang === "uk" ? "uk-UA" : "en-US", { maximumFractionDigits: 6 })}%`;
         }
-        return `${count(Math.round(p * 10) / 10)}%`;
+        return `${n(Math.round(p * 10) / 10)}%`;
     };
     const verdict = points < 2
-        ? "Add a few points and edges to compare the structures on your graph."
-        : `This graph has ${count(edges)} of the ${count(possible)} possible edges (${percent(share)}), so its adjacency matrix is ${percent(zeros)} zeros. ` +
+        ? t.addMorePoints
+        : t.density(edges, possible, percent(share), percent(zeros)) +
           (bytes.list < bytes.matrix
-              ? `The list stores only what is there, so it is the smaller one (${formatBytes(bytes.list)} against ${formatBytes(bytes.matrix)}), and it walks the graph fastest.`
-              : `Even so the matrix is the smaller one (${formatBytes(bytes.matrix)} against ${formatBytes(bytes.list)}): a list entry carries a name and a link, about ${Math.round(BYTES_PER_LIST_ITEM / BYTES_PER_CELL.matrix)} times a matrix cell. The list still walks the graph fastest.`);
+              ? t.listSmaller(formatBytes(bytes.list, lang), formatBytes(bytes.matrix, lang))
+              : t.matrixSmaller(formatBytes(bytes.matrix, lang), formatBytes(bytes.list, lang), Math.round(BYTES_PER_LIST_ITEM / BYTES_PER_CELL.matrix)));
 
-    return h("section", { class: "structure comparison", "aria-labelledby": "comparison-title" }, [
-        h("header", { class: "structure-head" }, [h("h2", { id: "comparison-title" }, ["Which structure for what"])]),
-        h("p", { class: "caption" }, [
-            `The work each one does, for this graph of V = ${count(points)} points and E = ${count(edges)} edges. The least in each row is in bold.`,
-        ]),
+    return h("section", { class: "structure comparison", lang, "aria-labelledby": "comparison-title" }, [
+        h("header", { class: "structure-head" }, [h("h2", { id: "comparison-title" }, [t.comparisonTitle])]),
+        h("p", { class: "caption" }, [t.comparisonCaption(points, edges)]),
         h("div", { class: "scroll" }, [h("table", { class: "comparison-table" }, [
-            h("thead", {}, [h("tr", {}, [h("td"), ...ORDER.map(id => h("th", { scope: "col" }, [representationNames[id]]))])]),
-            h("tbody", {}, rows.map(([what, costs]) => {
-                const least = Math.min(...costs.map(([, n]) => n));
+            h("thead", {}, [h("tr", {}, [h("td"), ...ORDER.map(id => h("th", { scope: "col" }, [t.structureNames[id]]))])]),
+            h("tbody", {}, rows.map(([what, costs, inBytes]) => {
+                const least = Math.min(...costs.map(([, amount]) => amount));
                 return h("tr", {}, [
                     h("th", { scope: "row" }, [what]),
-                    ...costs.map(([how, n]) => h("td", { class: classes({ least: n === least }) }, [
-                        h("span", { class: "amount" }, [what === "Memory" ? formatBytes(n) : count(n)]),
-                        h("span", { class: "how" }, [how]),
+                    ...costs.map(([text, amount]) => h("td", { class: classes({ least: amount === least }) }, [
+                        h("span", { class: "amount" }, [inBytes ? formatBytes(amount, lang) : n(amount)]),
+                        h("span", { class: "how" }, [text]),
                     ])),
                 ]);
             })),
@@ -83,15 +85,16 @@ export function comparisonView(app: App): HTMLElement {
 }
 
 // "How it works" for one structure, closed until opened; `toggled` remembers the choice between renders
-export function structureExplainerView(id: RepresentationId, open: boolean, toggled: (open: boolean) => void): HTMLElement {
-    const explainer = structureExplainers[id];
-    const details = h("details", { class: "explainer structure-explainer", open }, [
-        h("summary", {}, ["How it works"]),
+export function structureExplainerView(id: RepresentationId, lang: Lang, open: boolean, toggled: (open: boolean) => void): HTMLElement {
+    const explainer = structureExplainers[lang][id];
+    const t = texts[lang];
+    const details = h("details", { class: "explainer structure-explainer", open, lang }, [
+        h("summary", {}, [t.howItWorks]),
         ...explainer.idea.map(paragraph),
-        section("In TypeScript", [typescript(explainer.typescript)]),
+        section(t.inTypeScript, [typescript(structureCode[id])]),
         h("div", { class: "explainer-columns" }, [
-            section("Good for", [bullets(explainer.goodFor)]),
-            section("Not good for", [bullets(explainer.badFor)]),
+            section(t.goodFor, [bullets(explainer.goodFor)]),
+            section(t.notGoodFor, [bullets(explainer.badFor)]),
         ]),
     ]);
     details.addEventListener("toggle", () => toggled(details.open));

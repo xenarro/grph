@@ -13,9 +13,9 @@ import { App, Selection } from "./app";
 import { classes, h } from "./dom";
 import { GridMarks, GridPicture } from "./grid-picture";
 import { ListWindow } from "./list-window";
-import { MatrixId, RepresentationId, representationNames } from "./model";
+import { MatrixId, RepresentationId } from "./model";
 import { comparisonView, structureExplainerView } from "./structure-guide";
-import { count, formatBytes } from "./format";
+import { count, texts } from "./i18n";
 
 const TABLE = { points: 40, edges: 120 };
 const LIST_ROWS = 200;
@@ -50,11 +50,11 @@ export function mountStructures(root: HTMLElement, app: App): void {
             const view = id === "matrix" ? matrixView(views) : id === "list" ? listView(views) : incidenceView(views);
             return h("section", { class: classes({ structure: true, reading }), "aria-labelledby": `structure-${id}` }, [
                 h("header", { class: "structure-head" }, [
-                    h("h2", { id: `structure-${id}` }, [representationNames[id]]),
-                    reading && h("span", { class: "reading-badge" }, ["The algorithm reads this one"]),
+                    h("h2", { id: `structure-${id}` }, [texts[app.lang].structureNames[id]]),
+                    reading && h("span", { class: "reading-badge" }, [texts[app.lang].readingBadge]),
                 ]),
-                h("p", { class: "caption" }, [caption(id, app.model.directed)]),
-                structureExplainerView(id, explained.has(id), open => open ? explained.add(id) : explained.delete(id)),
+                h("p", { class: "caption", lang: app.lang }, [texts[app.lang].caption(id, app.model.directed)]),
+                structureExplainerView(id, app.lang, explained.has(id), open => open ? explained.add(id) : explained.delete(id)),
                 ...view,
             ]);
         });
@@ -80,23 +80,6 @@ export function mountStructures(root: HTMLElement, app: App): void {
     render();
 }
 
-function caption(id: RepresentationId, directed: boolean): string {
-    switch (id) {
-        case "matrix":
-            return directed
-                ? "A row and a column for every point. The cell in row X, column Y holds the weight of the edge X→Y, or 0 when there is none."
-                : "A row and a column for every point. A cell holds the weight of the edge between its two points, or 0. Each edge is stored twice, so the matrix is symmetric.";
-        case "list":
-            return directed
-                ? "Every point keeps a list of the points its edges lead to, with the edge weights."
-                : "Every point keeps a list of its neighbors, with the edge weights. Each edge is stored twice, once in each point's list.";
-        case "incidence":
-            return directed
-                ? "A row for every point, a column for every edge. An edge's column holds −weight in the row of the point it leaves and +weight in the row of the point it enters."
-                : "A row for every point, a column for every edge. An edge's column holds its weight in the rows of the two points it connects.";
-    }
-}
-
 // ---- adjacency matrix
 
 function matrixView(views: Views): Node[] {
@@ -108,7 +91,7 @@ function matrixView(views: Views): Node[] {
     const points = matrix.getPoints();
     const size = points.length;
     if (size === 0) {
-        return [emptyNote()];
+        return [emptyNote(app)];
     }
     if (size > TABLE.points) {
         return matrixPicture(views, matrix, points);
@@ -139,7 +122,7 @@ function matrixView(views: Views): Node[] {
 
     // the same matrix as the class stores it: one flat array, row after row
     const flat = h("details", { class: "flat" }, [
-        h("summary", {}, [`Stored as one flat array of ${size * size} numbers`]),
+        h("summary", {}, [texts[app.lang].flatArray(size * size)]),
         h("p", { class: "flat-array" }, [
             "[",
             ...Array.from(matrix.graph).flatMap((value, cell) => {
@@ -165,7 +148,7 @@ function matrixView(views: Views): Node[] {
 
     return [
         h("div", { class: "scroll" }, [table]),
-        h("p", { class: "cost" }, [`${size} × ${size} = ${size * size} cells, whatever the number of edges.`]),
+        h("p", { class: "cost" }, [texts[app.lang].matrixCost(size)]),
         flat,
     ];
 }
@@ -202,7 +185,7 @@ function matrixPicture(views: Views, matrix: AdjacencyMatrix, points: string[]):
             }
         },
         value: (row, column) => matrix.graph[row * size + column],
-        describe: (row, column) => `Row ${points[row]}, column ${points[column]}: ${formatNumber(matrix.graph[row * size + column])}`,
+        describe: (row, column) => texts[app.lang].matrixCell(points[row], points[column], formatNumber(matrix.graph[row * size + column])),
     }, marks, (row, column) => toggle(app, matrix.graph[row * size + column] !== 0
         ? { kind: "edge", from: points[row], to: points[column] }
         : { kind: "point", name: points[row] }));
@@ -210,11 +193,8 @@ function matrixPicture(views: Views, matrix: AdjacencyMatrix, points: string[]):
     const cells = size * size;
     return [
         picture,
-        h("p", { class: "cost" }, [
-            `${count(size)} × ${count(size)} = ${count(cells)} cells, about ${formatBytes(cells * 8)}, whatever the number of edges. `,
-            `Too many to write out, so every cell is a pixel here: dark when it holds an edge. Hover a cell to read it.`,
-        ]),
-        h("p", { class: "cost" }, [`Stored as one flat array of ${count(cells)} numbers, row after row.`]),
+        h("p", { class: "cost" }, [texts[app.lang].matrixPicture(size, cells, cells * 8)]),
+        h("p", { class: "cost" }, [texts[app.lang].matrixPictureStored(cells)]),
     ];
 }
 
@@ -225,7 +205,7 @@ function listView(views: Views): Node[] {
     const list = app.model.list;
     const points = list.getPoints();
     if (points.length === 0) {
-        return [emptyNote()];
+        return [emptyNote(app)];
     }
     if (points.length > LIST_ROWS) {
         return listWindowView(views, points);
@@ -251,13 +231,13 @@ function listView(views: Views): Node[] {
                     h("span", { class: "list-weight", title: "weight" }, [formatNumber(entry.weight)]),
                 ])]),
             ]),
-            neighbors.length === 0 && h("span", { class: "list-empty" }, ["no neighbors"]),
+            neighbors.length === 0 && h("span", { class: "list-empty" }, [texts[app.lang].noNeighbors]),
         ]);
     });
 
     return [
         h("div", { class: "adjacency-list" }, rows),
-        h("p", { class: "cost" }, [`${points.length} lists with ${entries} ${entries === 1 ? "entry" : "entries"} in total.`]),
+        h("p", { class: "cost" }, [texts[app.lang].listCost(points.length, entries)]),
     ];
 }
 
@@ -283,8 +263,8 @@ function listWindowView(views: Views, points: string[]): Node[] {
                     h("span", { class: "list-weight", title: "weight" }, [formatNumber(entry.weight)]),
                 ])]),
             ]),
-            neighbors.length > shown.length && h("span", { class: "list-more" }, [`+${count(neighbors.length - shown.length)} more`]),
-            neighbors.length === 0 && h("span", { class: "list-empty" }, ["no neighbors"]),
+            neighbors.length > shown.length && h("span", { class: "list-more" }, [`+${count(neighbors.length - shown.length, app.lang)}`]),
+            neighbors.length === 0 && h("span", { class: "list-empty" }, [texts[app.lang].noNeighbors]),
         ]);
     });
     views.attached.push(attached);
@@ -293,8 +273,8 @@ function listWindowView(views: Views, points: string[]): Node[] {
     return [
         element,
         h("p", { class: "cost" }, [
-            `${count(points.length)} lists with ${count(entries)} entries in total. `,
-            `Only the lists in view are on the page; scroll to see more.`,
+            `${texts[app.lang].listCost(points.length, entries)} `,
+            texts[app.lang].listWindow,
         ]),
     ];
 }
@@ -309,7 +289,7 @@ function incidenceView(views: Views): Node[] {
     }
     const points = incidence.getPoints();
     if (points.length === 0) {
-        return [emptyNote()];
+        return [emptyNote(app)];
     }
     if (incidence.edges.length > 0 && (points.length > TABLE.points || incidence.edges.length > TABLE.edges)) {
         return incidencePicture(views, incidence, points);
@@ -344,8 +324,8 @@ function incidenceView(views: Views): Node[] {
         h("div", { class: "scroll" }, [table]),
         h("p", { class: "cost" }, [
             edges === 0
-                ? "No edges yet, so no columns."
-                : `${points.length} × ${edges} = ${points.length * edges} cells. Finding a point's neighbors means reading its row, then scanning each edge's column for the other end.`,
+                ? texts[app.lang].incidenceNoEdges
+                : texts[app.lang].incidenceCost(points.length, edges),
         ]),
     ];
 }
@@ -379,7 +359,7 @@ function incidencePicture(views: Views, incidence: IncidenceMatrix, points: stri
         })),
         value: (row, column) => incidence.graph[row][column],
         describe: (row, column) =>
-            `Point ${points[row]}, edge ${edgeLabel(edges[column].from, edges[column].to, directed)}: ${formatNumber(incidence.graph[row][column])}`,
+            texts[app.lang].incidenceCell(points[row], edgeLabel(edges[column].from, edges[column].to, directed), formatNumber(incidence.graph[row][column])),
     }, marks, (row, column) => toggle(app, incidence.graph[row][column] !== 0
         ? { kind: "edge", from: edges[column].from, to: edges[column].to }
         : { kind: "point", name: points[row] }));
@@ -387,11 +367,7 @@ function incidencePicture(views: Views, incidence: IncidenceMatrix, points: stri
     const cells = points.length * edges.length;
     return [
         picture,
-        h("p", { class: "cost" }, [
-            `${count(points.length)} × ${count(edges.length)} = ${count(cells)} cells, about ${formatBytes(cells * 12)}. `,
-            `Every cell is a pixel here${edges.length > 2000 ? ", and a pixel column stands for several edges" : ""}: `,
-            directed ? "dark for +weight, blue for −weight." : "dark when the edge touches the point.",
-        ]),
+        h("p", { class: "cost" }, [texts[app.lang].incidencePicture(points.length, edges.length, cells, cells * 12, edges.length > 2000, directed)]),
     ];
 }
 
@@ -420,23 +396,18 @@ function toggle(app: App, selection: Exclude<Selection, null>): void {
 // why a matrix is not built for this graph: what it would cost, and the size the page builds it for
 function tooBigNote(app: App, id: MatrixId): HTMLElement {
     const { model } = app;
+    const t = texts[app.lang];
     const { cells, bytes } = model.size(id);
-    const points = model.pointCount();
-    const formula = id === "matrix"
-        ? `${count(points)} × ${count(points)} = ${count(cells)} cells`
-        : `${count(points)} points × ${count(model.edgeCount())} edges = ${count(cells)} cells`;
-    const limit = id === "matrix"
-        ? `${count(model.limits.matrix.points)} points`
-        : `${count(model.limits.incidence.points)} points and ${count(model.limits.incidence.cells)} cells`;
-    return h("p", { class: "too-big" }, [
-        h("strong", {}, ["The graph is too big for this structure. "]),
-        `It would take ${formula}, about ${formatBytes(bytes)}. `,
-        `The page builds it for graphs of up to ${limit}; the adjacency list holds the graph instead.`,
+    const { matrix, incidence } = model.limits;
+    return h("p", { class: "too-big", lang: app.lang }, [
+        h("strong", {}, [t.tooBig]),
+        t.tooBigCost(id, model.pointCount(), model.edgeCount(), cells, bytes),
+        id === "matrix" ? t.tooBigLimit(id, matrix.points, 0) : t.tooBigLimit(id, incidence.points, incidence.cells),
     ]);
 }
 
-function emptyNote(): HTMLElement {
-    return h("p", { class: "empty-note" }, ["No points yet."]);
+function emptyNote(app: App): HTMLElement {
+    return h("p", { class: "empty-note" }, [texts[app.lang].noPoints]);
 }
 
 // a real minus sign reads better than a hyphen

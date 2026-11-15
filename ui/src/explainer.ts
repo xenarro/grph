@@ -4,28 +4,31 @@
 
 import { App } from "./app";
 import { h } from "./dom";
-import { Explainer, explainers } from "./explainers";
+import { algorithmCode, Explainer, explainers } from "./explainers";
+import { Texts, texts } from "./i18n";
 
 const OPEN_KEY = "grph:explainer-open";
 
 export function mountExplainer(root: HTMLElement, app: App): void {
-    let shown: string | null = null;
+    // what is on the page: the algorithm and the language
+    let shown = "";
     let lines: { element: HTMLElement; steps: readonly string[] }[] = [];
 
     const build = () => {
-        shown = app.algorithm;
-        const explainer = explainers[app.algorithm];
+        shown = `${app.algorithm} ${app.lang}`;
+        const explainer = explainers[app.lang][app.algorithm];
+        const t = texts[app.lang];
         lines = [];
         if (!explainer) {
             root.replaceChildren();
             return;
         }
-        const box = h("details", { class: "explainer-box", open: readOpen() }, [
-            h("summary", {}, [
-                h("span", { class: "explainer-kicker" }, ["How it works"]),
+        const box = h("details", { class: "explainer-box", open: readOpen(), lang: app.lang }, [
+            h("summary", { "data-show": t.show, "data-hide": t.hide }, [
+                h("span", { class: "explainer-kicker" }, [t.howItWorks]),
                 h("h2", {}, [explainer.title]),
             ]),
-            ...content(explainer, lines),
+            ...content(explainer, algorithmCode[app.algorithm], t, lines),
         ]);
         box.addEventListener("toggle", () => saveOpen(box.open));
         root.replaceChildren(box);
@@ -42,7 +45,7 @@ export function mountExplainer(root: HTMLElement, app: App): void {
         if (change === "positions") {
             return;
         }
-        if (app.algorithm !== shown) {
+        if (`${app.algorithm} ${app.lang}` !== shown) {
             build();
         }
         highlight();
@@ -51,7 +54,7 @@ export function mountExplainer(root: HTMLElement, app: App): void {
     highlight();
 }
 
-function content(explainer: Explainer, lines: { element: HTMLElement; steps: readonly string[] }[]): HTMLElement[] {
+function content(explainer: Explainer, code: string, t: Texts, lines: { element: HTMLElement; steps: readonly string[] }[]): HTMLElement[] {
     const pseudocode = h("pre", { class: "pseudocode" }, explainer.pseudocode.map(line => {
         const element = h("span", { class: "line" }, [line.text || " "]);
         lines.push({ element, steps: line.steps ?? [] });
@@ -60,20 +63,20 @@ function content(explainer: Explainer, lines: { element: HTMLElement; steps: rea
 
     return [
         h("p", { class: "explainer-question" }, inline(explainer.question)),
-        section("What it is for", [bullets(explainer.uses)]),
-        section("The idea", explainer.idea.map(paragraph)),
-        section("Pseudocode", [
+        section(t.whatFor, [bullets(explainer.uses)]),
+        section(t.idea, explainer.idea.map(paragraph)),
+        section(t.pseudocode, [
             pseudocode,
-            h("p", { class: "explainer-note" }, ["While an algorithm runs, the line of the current step is highlighted."]),
+            h("p", { class: "explainer-note" }, [t.pseudocodeNote]),
             explainer.pseudocodeNote ? paragraph(explainer.pseudocodeNote) : null,
         ]),
-        section("In TypeScript", [typescript(explainer.typescript)]),
-        section("What it costs", explainer.cost.map(paragraph)),
+        section(t.inTypeScript, [typescript(code)]),
+        section(t.costs, explainer.cost.map(paragraph)),
         h("div", { class: "explainer-columns" }, [
-            section("Use it when", [bullets(explainer.useWhen)]),
-            section("Don't use it when", [bullets(explainer.avoidWhen)]),
+            section(t.useWhen, [bullets(explainer.useWhen)]),
+            section(t.avoidWhen, [bullets(explainer.avoidWhen)]),
         ]),
-        section("Try it here", [bullets(explainer.tryIt)]),
+        section(t.tryIt, [bullets(explainer.tryIt)]),
     ];
 }
 

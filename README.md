@@ -1,5 +1,7 @@
 # grph
 
+Українською: [README.uk.md](README.uk.md)
+
 A TypeScript project for learning how graphs work. It stores a graph in three standard ways and runs graph searches on them. A browser visualizer lets you build a graph and watch each structure change as you edit. You can also step through a search and see which part of each structure the algorithm reads at every step.
 
 ![The visualizer during a depth-first search: the drawing on the left, the adjacency matrix and adjacency list on the right, with the row being read highlighted](docs/screenshot.png)
@@ -23,6 +25,7 @@ npm run dev     # then open the printed address, usually http://localhost:5173
 - **Compare the structures.** **Which structure for what** works out, for the graph on the page, the memory each structure takes and the work it does to check an edge, list a point's neighbors, add a point or an edge, and search the whole graph, with the least in each row highlighted.
 - **Find a shortest path.** Click a point and press **Start here**, click another and press **Target here**, then run **Shortest path (Dijkstra)** for the lightest path, or **Breadth-first search** for the one with the fewest edges. The path turns blue and every point shows its distance.
 - **Learn how it works.** Under **How it works**, the chosen algorithm is explained: what it is for, the idea, pseudocode, the same algorithm in TypeScript, what it costs in each structure, when to use it and when not, and what to try here. While it runs, the pseudocode line of the current step is highlighted.
+- **Read it in Ukrainian.** The language select at the top switches the explanations and descriptions to Ukrainian; buttons and step messages stay in English. The code examples are the same in both.
 - **Step through an algorithm.** Pick an algorithm, its start and target, and which representation it reads neighbours from, then press Run. You can step back and forward, play automatically, or use ← → and Space. Each step says what is happening. Points are coloured the way textbooks colour them: white = not reached, gray = reached, black = finished. A highlighter marks what the algorithm is reading, both in the drawing and in all three structures.
 
 ### Big graphs
@@ -171,6 +174,7 @@ ui/                           the visualizer (Vite, no framework)
     ├── player.ts             running and replaying algorithms
     ├── explainer.ts          "How it works" for the chosen algorithm
     ├── explainers.ts         its text, pseudocode and TypeScript
+    ├── i18n.ts               the explanations' languages, English and Ukrainian
     ├── generate.ts           random graphs of any size
     └── presets.ts            example graphs
 test/                         Vitest tests and manual print scripts

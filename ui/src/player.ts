@@ -4,6 +4,7 @@ import { algorithms, getAlgorithm } from "../../src/algorithms";
 import { Trace, TraceList } from "../../src/algorithms/trace";
 import { App } from "./app";
 import { classes, h } from "./dom";
+import { texts } from "./i18n";
 import { RepresentationId, representationNames } from "./model";
 
 const SPEEDS = [
@@ -133,7 +134,8 @@ export function mountPlayer(root: HTMLElement, app: App): void {
 
     const render = () => {
         const chosen = selected();
-        description.textContent = chosen.description;
+        description.textContent = texts[app.lang].algorithmDescriptions[chosen.id] ?? chosen.description;
+        description.lang = app.lang;
         // fields an algorithm doesn't use are turned off, not hidden, so the row keeps its shape
         start.setDisabled(chosen.start === "none");
         target.setDisabled(chosen.target === "none");
@@ -268,6 +270,8 @@ export function mountPlayer(root: HTMLElement, app: App): void {
             clearRun(steps ? "The graph changed. Run the algorithm again." : "");
         } else if (change === "view") {
             showChoices();
+            // the description follows the language of the explanations
+            render();
         }
     });
 
