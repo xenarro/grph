@@ -241,31 +241,36 @@ export class App {
         return this.model.list.graph.keys().next().value ?? null;
     }
 
-    // Ignored for a name that is not a point of the graph. `deselect` clears the selection, so after
-    // choosing a selected point the next click on a point chooses it instead of connecting the two.
-    chooseStart(name: string, deselect = false): void {
+    // Ignored for a name that is not a point of the graph. `picked` is true when the point was picked
+    // on the drawing: the selection is cleared, so the next click on a point picks it instead of
+    // connecting the two.
+    chooseStart(name: string, picked = false): void {
         if (this.model.list.hasPoint(name)) {
             this.chosenStart = name;
         }
-        if (deselect) {
+        if (picked) {
             this.selection = null;
         }
         this.emit("view");
     }
 
-    // null for no target; otherwise like chooseStart. Choosing a target while the algorithm
-    // takes none switches to the shortest path.
-    chooseTarget(name: string | null, deselect = false): void {
+    // null for no target; otherwise like chooseStart. Picking a target on the drawing means
+    // "find the way there", so an algorithm that doesn't find the shortest path gives way to one that does.
+    chooseTarget(name: string | null, picked = false): void {
         if (name === null || this.model.list.hasPoint(name)) {
             this.target = name;
         }
-        if (this.target !== null && getAlgorithm(this.algorithm).target === "none") {
+        let notice: string | null = null;
+        const shortest = ["bfs", "dijkstra"];
+        if (this.target !== null && (getAlgorithm(this.algorithm).target === "none" || (picked && !shortest.includes(this.algorithm)))) {
+            notice = `${getAlgorithm(this.algorithm).name} doesn't find the shortest path, so the algorithm is now ` +
+                `${getAlgorithm("dijkstra").name}. Pick another one in the list to compare.`;
             this.algorithm = "dijkstra";
         }
-        if (deselect) {
+        if (picked) {
             this.selection = null;
         }
-        this.emit("view");
+        this.emit("view", notice);
     }
 
     // throws for an id no algorithm has

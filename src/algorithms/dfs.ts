@@ -108,7 +108,8 @@ const dfs = (graph: Graph, start: string, target?: string): DfsResult => {
                     tracer.markEdge(path[i - 1], name, "result");
                 }
             });
-            tracer.step(`Found ${target}. The stack is the path: ${nameList(path, " → ")}.`);
+            tracer.step(`Found ${target}. The stack is the path: ${nameList(path, " → ")}. ` +
+                "It is a path, not necessarily the shortest: breadth-first search and Dijkstra's algorithm find those.");
         } else {
             tracer.step(`Every point reachable from ${start} is visited. ${target} cannot be reached from ${start}.`);
         }

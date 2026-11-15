@@ -48,7 +48,7 @@ describe.each(representations)("dfs on %s", (_, create) => {
         expect(order).toEqual(["A", "B", "D", "C"]);
         expect(path).toEqual(["A", "B", "D", "C"]);
         const last = steps.at(-1);
-        expect(last.message).toBe("Found C. The stack is the path: A → B → D → C.");
+        expect(last.message).toMatch(/^Found C\. The stack is the path: A → B → D → C\. It is a path, not necessarily the shortest/);
         expect(last.edges.get(edgeKey("D", "C", false))).toBe("result");
         expect(last.points.get("A")).toBe("result");
     });

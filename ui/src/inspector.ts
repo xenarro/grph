@@ -8,7 +8,7 @@ export function mountInspector(root: HTMLElement, app: App): void {
     const render = () => {
         const selected = app.selection;
         // why the last click did nothing, for example a limit was reached
-        const notice = app.notice && h("p", { class: "error", role: "alert" }, [app.notice]);
+        const notice = app.notice && h("p", { class: "notice", role: "status" }, [app.notice]);
 
         if (!selected) {
             root.replaceChildren(

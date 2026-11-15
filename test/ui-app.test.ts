@@ -201,6 +201,20 @@ describe("App", () => {
         expect(app.algorithm).toBe("topological-sort");
         app.chooseTarget(app.model.points()[2]);
         expect(app.algorithm).toBe("dijkstra");
+
+        // a target picked on the drawing means the shortest path: depth-first search gives way, with a note
+        app.setAlgorithm("dfs");
+        app.chooseTarget(app.model.points()[3], true);
+        expect(app.algorithm).toBe("dijkstra");
+        expect(app.notice).toMatch(/Depth-first search doesn't find the shortest path/);
+
+        // a target chosen in the player's field keeps the algorithm, and so does breadth-first search
+        app.setAlgorithm("dfs");
+        app.chooseTarget(app.model.points()[4]);
+        expect(app.algorithm).toBe("dfs");
+        app.setAlgorithm("bfs");
+        app.chooseTarget(app.model.points()[5], true);
+        expect(app.algorithm).toBe("bfs");
         expect(() => app.setAlgorithm("nope")).toThrow(/Unknown algorithm/);
     });
 });
