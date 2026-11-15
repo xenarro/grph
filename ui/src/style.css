@@ -276,8 +276,14 @@ input[type="number"] {
     }
 
     .board {
-        height: min(64vh, 560px);
         border-right: none;
+    }
+
+    /* no empty paper around the drawing area on narrow screens */
+    #canvas {
+        flex: none;
+        aspect-ratio: 800 / 560;
+        max-height: 72vh;
     }
 
     .player {
@@ -465,6 +471,10 @@ input[type="number"] {
 .point.mark-result .point-name,
 .point.mark-error .point-name {
     fill: var(--on-pen);
+}
+
+.point-hit {
+    fill: transparent;
 }
 
 .point-highlight {

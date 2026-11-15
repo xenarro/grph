@@ -192,6 +192,8 @@ function drawPoint(app: App, name: string): SVGGElement {
         "data-point": name,
         transform: `translate(${round(x)} ${round(y)})`,
     }, [
+        // a larger invisible circle makes points easier to hit with a finger
+        s("circle", { r: r + 8, class: "point-hit" }),
         focused && s("circle", { r: r + 9, class: "point-highlight" }),
         selected && s("circle", { r: r + 6, class: "point-selection" }),
         s("circle", { r, class: "point-body" }),
