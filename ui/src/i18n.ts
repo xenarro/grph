@@ -1,5 +1,5 @@
-// The explanations and descriptions in two languages, English and Ukrainian. Buttons, step messages
-// and notices stay in English. The longer texts are in explainers.ts and structure-explainers.ts.
+// The header, explanations, descriptions and converter in two languages, English and Ukrainian.
+// Buttons, step messages and notices stay in English. The longer texts are in explainers.ts and structure-explainers.ts.
 
 import { RepresentationId } from "./model";
 
@@ -54,9 +54,11 @@ export function formatBytes(bytes: number, lang: Lang = "en"): string {
 type Matrix = Exclude<RepresentationId, "list">;
 
 export interface Texts {
-    // the language select, and the docs under the app
-    explanationsLanguage: string;
-    docsLink: string;
+    // the header: the subtitle, the links to the three parts of the page, and the language select
+    tagline: string;
+    sections: string;
+    nav: { visualizer: string; converter: string; docs: string };
+    language: string;
     docsTitle: string;
     docsIntro: string;
     theAlgorithm: string;
@@ -131,8 +133,10 @@ export interface Texts {
 }
 
 const en: Texts = {
-    explanationsLanguage: "Language of the explanations",
-    docsLink: "Docs ↓",
+    tagline: "Build a graph, see how it is stored, and step through a search.",
+    sections: "Parts of the page",
+    nav: { visualizer: "Visualizer", converter: "Converter", docs: "Docs" },
+    language: "Language",
     docsTitle: "How it works",
     docsIntro: "The algorithm chosen above and the three ways to store a graph, explained. While an algorithm runs above, the line of its pseudocode for the current step is highlighted here.",
     theAlgorithm: "The algorithm",
@@ -242,8 +246,10 @@ const ukForms = {
 const uk_ = (n: number, forms: { one: string; few?: string; many: string }) => `${ukCount(n)} ${plural(n, "uk", forms)}`;
 
 const uk: Texts = {
-    explanationsLanguage: "Мова пояснень",
-    docsLink: "Документація ↓",
+    tagline: "Побудуй граф, подивись, як він зберігається, і пройди пошук крок за кроком.",
+    sections: "Частини сторінки",
+    nav: { visualizer: "Візуалізатор", converter: "Конвертер", docs: "Документація" },
+    language: "Мова",
     docsTitle: "Як це працює",
     docsIntro: "Алгоритм, обраний угорі, і три способи зберігати граф — з поясненнями. Поки алгоритм працює вгорі, тут підсвічено рядок його псевдокоду для поточного кроку.",
     theAlgorithm: "Алгоритм",

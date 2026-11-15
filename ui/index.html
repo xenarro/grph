@@ -12,16 +12,18 @@
     <link rel="stylesheet" href="./src/style.css">
 </head>
 <body>
-    <div class="app">
-        <header class="topbar">
-            <div class="brand">
-                <h1>grph</h1>
-                <p>Build a graph, see how it is stored, and step through a search.</p>
-            </div>
-            <div class="toolbar" id="toolbar"></div>
-        </header>
+    <header class="topbar">
+        <div class="brand">
+            <h1>grph</h1>
+            <p id="tagline">Build a graph, see how it is stored, and step through a search.</p>
+        </div>
+        <nav class="site-nav" id="site-nav" aria-label="Parts of the page"></nav>
+        <div class="topbar-end" id="topbar-end"></div>
+    </header>
+    <div class="app" id="visualizer">
         <main class="workspace">
             <section class="board" aria-label="Graph drawing">
+                <div class="toolbar" id="toolbar" role="group" aria-label="Graph"></div>
                 <div class="paper"><canvas id="canvas"></canvas></div>
                 <div class="inspector" id="inspector"></div>
             </section>

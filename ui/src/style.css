@@ -182,20 +182,46 @@ input[type="number"] {
 
 /* ---------- layout */
 
-.app {
-    display: grid;
-    grid-template-rows: auto 1fr;
-    min-height: 100vh;
+/* The header: the name, links to the three parts of the page, and the language. On wide screens it
+   stays at the top while the page scrolls, one row of a fixed height. */
+:root {
+    --topbar-height: 60px;
 }
 
 .topbar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px 32px;
+    gap: 10px 32px;
     padding: 12px 20px;
     border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+}
+
+.site-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    margin-right: auto;
+}
+
+.site-nav a {
+    padding: 6px 10px;
+    border-radius: 4px;
+    color: var(--pencil);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.site-nav a:hover {
+    color: var(--ink);
+    background: var(--paper-raised);
+}
+
+/* the part in view, marked the way the highlighter marks what an algorithm reads */
+.site-nav a[aria-current] {
+    color: var(--ink);
+    background: linear-gradient(transparent 62%, var(--highlighter) 62%, var(--highlighter) 90%, transparent 90%);
 }
 
 .brand {
@@ -216,25 +242,59 @@ input[type="number"] {
     color: var(--pencil);
 }
 
-/* below 1560 pixels the subtitle gives its room to the controls, so the header stays one row high
-   (the Ukrainian controls are the wider ones) */
-@media (min-width: 1000px) and (max-width: 1559px) {
+/* below 1200 pixels the subtitle gives its room to the links, so the header stays one row high */
+@media (min-width: 1000px) and (max-width: 1199px) {
     .brand p {
         display: none;
     }
 }
 
-@media (min-width: 1000px) and (max-width: 1279px) {
+@media (min-width: 1000px) {
     .topbar {
-        column-gap: 20px;
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        box-sizing: border-box;
+        height: var(--topbar-height);
+        flex-wrap: nowrap;
+        padding-block: 0;
+    }
+
+    /* a link to a part scrolls it to just under the header */
+    .app,
+    .converter,
+    .docs {
+        scroll-margin-top: var(--topbar-height);
     }
 }
 
+/* on narrow screens: the name and the language on one row, the links on the next */
+@media (max-width: 999px) {
+    .topbar-end {
+        margin-left: auto;
+    }
+
+    .site-nav {
+        order: 3;
+        flex-basis: 100%;
+        margin: 0 -10px;
+    }
+}
+
+@media (max-width: 600px) {
+    .brand p {
+        display: none;
+    }
+}
+
+/* the controls that change the whole graph, right over the drawing */
 .toolbar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
+    gap: 8px 10px;
+    padding: 7px 20px;
+    border-bottom: 1px solid var(--rule);
 }
 
 .workspace {
@@ -266,8 +326,11 @@ input[type="number"] {
 }
 
 @media (min-width: 1000px) {
+    /* the visualizer fills the window under the header */
     .app {
-        height: 100vh;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr);
+        height: calc(100vh - var(--topbar-height));
     }
 
     .workspace {
@@ -737,13 +800,6 @@ button.small {
 .doc .comparison h2 {
     margin: 0;
     font: 600 24px/1.2 var(--font-math);
-}
-
-.docs-link {
-    color: var(--ink);
-    font-weight: 500;
-    text-decoration: underline;
-    text-underline-offset: 3px;
 }
 
 .explainer-question {

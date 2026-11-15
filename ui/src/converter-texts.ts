@@ -7,7 +7,6 @@ import { englishProblems, ProblemMessages } from "../../src/io/problems";
 import { count, Lang, plural } from "./i18n";
 
 export interface ConverterTexts {
-    link: string;
     title: string;
     intro: string;
     input: string;
@@ -40,7 +39,6 @@ export interface ConverterTexts {
 }
 
 const en: ConverterTexts = {
-    link: "Convert ↓",
     title: "Convert a graph",
     intro: "Paste a graph you already have — an edge list, an adjacency list, an adjacency matrix or an incidence matrix, as text or JSON — and get it back in another of the four. Nothing is drawn and nothing leaves your browser: the text is read, checked and written out again.",
     input: "Your graph",
@@ -125,7 +123,6 @@ const ukProblems: ProblemMessages = {
 };
 
 const uk: ConverterTexts = {
-    link: "Конвертер ↓",
     title: "Конвертувати граф",
     intro: "Вставте граф, який у вас уже є, — список ребер, список суміжності, матрицю суміжності чи матрицю інцидентності, текстом або JSON, — і отримайте його в іншому з цих чотирьох видів. Нічого не малюється і нічого не залишає ваш браузер: текст лише читається, перевіряється і записується знову.",
     input: "Ваш граф",
