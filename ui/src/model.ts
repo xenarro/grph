@@ -1,9 +1,14 @@
-// The graph being edited in the browser. Every edit is applied to all three representations,
-// so they can be shown side by side. Point positions are only needed for drawing and are kept here.
+// The graph being edited in the browser.
+//
+// The adjacency list holds it. A list grows with points + edges, so it can hold any graph the page can.
+// The two matrices grow much faster (points × points and points × edges cells), so they are built from
+// the list only while the graph is small enough for them, follow every edit from then on, and are
+// dropped as soon as the graph outgrows them. Point positions are only needed for drawing and are kept here.
 
 import AdjacencyMatrix from "../../src/graph/adjacency-matrix";
 import AdjacencyList from "../../src/graph/adjacency-list";
 import IncidenceMatrix from "../../src/graph/incidence-matrix";
+import { convert } from "../../src/graph/convert";
 import Graph from "../../src/graph/interfaces/graph";
 import Edge from "../../src/graph/interfaces/edge";
 
@@ -37,22 +42,74 @@ export const MAX_EDGES = 120;
 
 export class GraphTooBigError extends Error {}
 
+// The matrices are not built past these sizes.
+export const STRUCTURE_LIMITS = {
+    matrix: { points: 1_000 },                       // 1,000 × 1,000 cells: 8 MB
+    incidence: { points: 1_000, cells: 3_000_000 },  // points × edges cells: about 36 MB
+};
+export type StructureLimits = typeof STRUCTURE_LIMITS;
+export type MatrixId = Exclude<RepresentationId, "list">;
+
+// Bytes one cell takes, measured in Chrome's JavaScript engine (V8): the adjacency matrix
+// is a Float64Array, the incidence matrix is an array of ordinary number arrays.
+const BYTES_PER_CELL: Record<MatrixId, number> = { matrix: 8, incidence: 12 };
+
+export interface StructureSize {
+    cells: number;
+    bytes: number;
+    // false when the graph is too big for the page to build this matrix
+    fits: boolean;
+}
+
 export class GraphModel {
-    matrix = new AdjacencyMatrix(false);
     list = new AdjacencyList(false);
-    incidence = new IncidenceMatrix(false);
+    private builtMatrix: AdjacencyMatrix | null = new AdjacencyMatrix(false);
+    private builtIncidence: IncidenceMatrix | null = new IncidenceMatrix(false);
     readonly positions = new Map<string, Position>();
+    readonly limits: StructureLimits;
+
+    constructor(limits: StructureLimits = STRUCTURE_LIMITS) {
+        this.limits = limits;
+    }
 
     get directed(): boolean {
         return this.list.directed;
     }
 
-    representation(id: RepresentationId): Graph {
-        return { matrix: this.matrix, list: this.list, incidence: this.incidence }[id];
+    // null while the graph is too big for the matrix
+    get matrix(): AdjacencyMatrix | null {
+        return this.builtMatrix;
     }
 
-    private get all(): Graph[] {
-        return [this.matrix, this.list, this.incidence];
+    // null while the graph is too big for the matrix
+    get incidence(): IncidenceMatrix | null {
+        return this.builtIncidence;
+    }
+
+    // null while the graph is too big for that representation
+    representation(id: RepresentationId): Graph | null {
+        return { matrix: this.builtMatrix, list: this.list, incidence: this.builtIncidence }[id];
+    }
+
+    pointCount(): number {
+        return this.list.graph.size;
+    }
+
+    // counted from the list without building the edge list: every undirected edge is in two lists
+    edgeCount(): number {
+        let entries = 0;
+        this.list.graph.forEach(list => entries += list.length);
+        return this.directed ? entries : entries / 2;
+    }
+
+    // how big a matrix is, or would be, for the current graph
+    size(id: MatrixId): StructureSize {
+        const points = this.pointCount();
+        const cells = id === "matrix" ? points * points : points * this.edgeCount();
+        const fits = id === "matrix"
+            ? points <= this.limits.matrix.points
+            : points <= this.limits.incidence.points && cells <= this.limits.incidence.cells;
+        return { cells, bytes: cells * BYTES_PER_CELL[id], fits };
     }
 
     points(): string[] {
@@ -72,11 +129,11 @@ export class GraphModel {
     }
 
     canAddPoint(): boolean {
-        return this.points().length < MAX_POINTS;
+        return this.pointCount() < MAX_POINTS;
     }
 
     canAddEdge(): boolean {
-        return this.edges().length < MAX_EDGES;
+        return this.edgeCount() < MAX_EDGES;
     }
 
     position(name: string): Position {
@@ -84,7 +141,7 @@ export class GraphModel {
     }
 
     addPoint(name: string, position: Position): void {
-        this.all.forEach(graph => graph.addPoint(name));
+        this.edit(graph => graph.addPoint(name));
         this.positions.set(name, clamp(position));
     }
 
@@ -93,17 +150,37 @@ export class GraphModel {
     }
 
     removePoint(name: string): void {
-        this.all.forEach(graph => graph.removePoint(name));
+        this.edit(graph => graph.removePoint(name));
         this.positions.delete(name);
     }
 
     // adds the edge, or changes its weight when it already exists
     addEdge(nameX: string, nameY: string, weight: number = 1): void {
-        this.all.forEach(graph => graph.addEdge(nameX, nameY, weight));
+        this.edit(graph => graph.addEdge(nameX, nameY, weight));
     }
 
     removeEdge(nameX: string, nameY: string): void {
-        this.all.forEach(graph => graph.removeEdge(nameX, nameY));
+        this.edit(graph => graph.removeEdge(nameX, nameY));
+    }
+
+    // Applies an edit to the list, then brings each matrix up to date: a matrix the graph still fits
+    // gets the same edit, one the graph has outgrown is dropped, and one the graph fits again
+    // is built from the list.
+    private edit(change: (graph: Graph) => void): void {
+        change(this.list);
+        this.builtMatrix = this.follow(this.builtMatrix, "matrix", change, () => new AdjacencyMatrix(this.directed));
+        this.builtIncidence = this.follow(this.builtIncidence, "incidence", change, () => new IncidenceMatrix(this.directed));
+    }
+
+    private follow<T extends Graph>(built: T | null, id: MatrixId, change: (graph: Graph) => void, create: () => T): T | null {
+        if (!this.size(id).fits) {
+            return null;
+        }
+        if (built) {
+            change(built);
+            return built;
+        }
+        return convert(this.list, create());
     }
 
     // Rebuilds the graph with the other kind of edges. An undirected edge becomes one
@@ -118,12 +195,17 @@ export class GraphModel {
         if (names.size > MAX_POINTS || data.edges.length > MAX_EDGES) {
             throw new GraphTooBigError(`${names.size} points and ${data.edges.length} edges is over the limit`);
         }
-        this.matrix = new AdjacencyMatrix(data.directed);
+        // the list first, then the matrices the graph fits, converted from the list
         this.list = new AdjacencyList(data.directed);
-        this.incidence = new IncidenceMatrix(data.directed);
+        this.builtMatrix = null;
+        this.builtIncidence = null;
         this.positions.clear();
-        data.points.forEach(({ name, x, y }) => this.addPoint(name, { x, y }));
-        data.edges.forEach(({ from, to, weight }) => this.addEdge(from, to, weight));
+        data.points.forEach(({ name, x, y }) => {
+            this.list.addPoint(name);
+            this.positions.set(name, clamp({ x, y }));
+        });
+        data.edges.forEach(({ from, to, weight }) => this.list.addEdge(from, to, weight));
+        this.edit(() => {});
     }
 
     toData(): GraphData {

@@ -585,6 +585,20 @@ em.math {
     color: var(--pencil);
 }
 
+.too-big {
+    max-width: 62ch;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px dashed var(--rule);
+    border-radius: 6px;
+    color: var(--pencil);
+}
+
+.too-big strong {
+    color: var(--ink);
+    font-weight: 600;
+}
+
 .scroll {
     max-width: 100%;
     overflow-x: auto;

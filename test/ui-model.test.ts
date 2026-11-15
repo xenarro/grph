@@ -11,7 +11,7 @@ describe("GraphModel", () => {
         model.addEdge("B", "C");
 
         for (const id of ["matrix", "list", "incidence"] as const) {
-            const graph = model.representation(id);
+            const graph = model.representation(id)!;
             expect(graph.getPoints()).toEqual(["B", "C"]);
             expect(graph.hasEdge("C", "B")).toBe(true);
         }
@@ -31,7 +31,7 @@ describe("GraphModel", () => {
         model.setDirected(true);
         expect(model.directed).toBe(true);
         expect(model.edges()).toEqual([{ from: "A", to: "B", weight: 2 }]);
-        expect(model.incidence.directed).toBe(true);
+        expect(model.incidence!.directed).toBe(true);
 
         model.addEdge("B", "A", 5);
         model.setDirected(false);
@@ -75,6 +75,55 @@ describe("GraphModel", () => {
         expect(() => model.load({ directed: false, points: [], edges })).toThrow(GraphTooBigError);
 
         expect(model.points().length).toBe(presets[0].data.points.length);
+    });
+
+    describe("matrices past their limits", () => {
+        const tiny = { matrix: { points: 3 }, incidence: { points: 3, cells: 4 } };
+
+        it("drops a matrix the graph outgrows and builds it again from the list", () => {
+            const model = new GraphModel(tiny);
+            model.addEdge("A", "B", 2);
+            model.addEdge("B", "C", 3);
+            expect(model.matrix).not.toBeNull();
+            expect(model.incidence).toBeNull(); // 3 points × 2 edges = 6 cells, over 4
+            expect(model.size("incidence")).toEqual({ cells: 6, bytes: 72, fits: false });
+
+            model.addPoint("D", { x: 0, y: 0 });
+            expect(model.matrix).toBeNull();
+            expect(model.representation("matrix")).toBeNull();
+            expect(model.representation("list")).toBe(model.list);
+            expect(model.size("matrix")).toEqual({ cells: 16, bytes: 128, fits: false });
+
+            model.removePoint("D");
+            model.removeEdge("B", "C");
+            expect(model.matrix!.getPoints()).toEqual(["A", "B", "C"]);
+            expect(model.matrix!.getNeighbors("A")).toEqual([{ name: "B", weight: 2 }]);
+            expect(model.incidence!.getEdges()).toEqual([{ from: "A", to: "B", weight: 2 }]);
+        });
+
+        it("loads a graph into the list only when it is too big for the matrices", () => {
+            const model = new GraphModel(tiny);
+            const points = ["A", "B", "C", "D"].map(name => ({ name, x: 0, y: 0 }));
+            model.load({ directed: true, points, edges: [{ from: "A", to: "D", weight: 1 }] });
+            expect(model.matrix).toBeNull();
+            expect(model.incidence).toBeNull();
+            expect(model.list.getNeighbors("A")).toEqual([{ name: "D", weight: 1 }]);
+            expect(model.edgeCount()).toBe(1);
+        });
+
+        it("builds the matrices for a thousand points", () => {
+            const model = new GraphModel();
+            const names = Array.from({ length: 1000 }, (_, i) => "P" + i);
+            names.forEach(name => model.addPoint(name, { x: 0, y: 0 }));
+            names.forEach((name, i) => model.addEdge(name, names[(i + 1) % 1000]));
+            expect(model.matrix!.getPoints()).toEqual(names);
+            expect(model.matrix!.getNeighbors("P0")).toEqual([{ name: "P1", weight: 1 }, { name: "P999", weight: 1 }]);
+            expect(model.incidence!.edges.length).toBe(1000);
+
+            model.addPoint("one too many", { x: 0, y: 0 });
+            expect(model.matrix).toBeNull();
+            expect(model.incidence).toBeNull();
+        });
     });
 
     it.each(presets)("loads the $name preset", preset => {

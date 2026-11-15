@@ -6,7 +6,7 @@
 import { edgeLabel } from "../../src/graph/validation";
 import { App, Selection } from "./app";
 import { classes, h } from "./dom";
-import { RepresentationId, representationNames } from "./model";
+import { MatrixId, RepresentationId, representationNames } from "./model";
 
 export function mountStructures(root: HTMLElement, app: App): void {
     let flatArrayOpen = false;
@@ -58,6 +58,9 @@ function caption(id: RepresentationId, directed: boolean): string {
 
 function matrixView(app: App): Node[] {
     const matrix = app.model.matrix;
+    if (!matrix) {
+        return [tooBigNote(app, "matrix")];
+    }
     const points = matrix.getPoints();
     const size = points.length;
     if (size === 0) {
@@ -163,6 +166,9 @@ function listView(app: App): Node[] {
 
 function incidenceView(app: App): Node[] {
     const incidence = app.model.incidence;
+    if (!incidence) {
+        return [tooBigNote(app, "incidence")];
+    }
     const points = incidence.getPoints();
     if (points.length === 0) {
         return [emptyNote()];
@@ -223,6 +229,38 @@ function toggle(app: App, selection: Exclude<Selection, null>): void {
         ? app.isSelectedPoint(selection.name)
         : app.isSelectedEdge(selection.from, selection.to);
     app.select(already ? null : selection);
+}
+
+// why a matrix is not built for this graph: what it would cost, and the size the page builds it for
+function tooBigNote(app: App, id: MatrixId): HTMLElement {
+    const { model } = app;
+    const { cells, bytes } = model.size(id);
+    const points = model.pointCount();
+    const formula = id === "matrix"
+        ? `${count(points)} × ${count(points)} = ${count(cells)} cells`
+        : `${count(points)} points × ${count(model.edgeCount())} edges = ${count(cells)} cells`;
+    const limit = id === "matrix"
+        ? `${count(model.limits.matrix.points)} points`
+        : `${count(model.limits.incidence.points)} points and ${count(model.limits.incidence.cells)} cells`;
+    return h("p", { class: "too-big" }, [
+        h("strong", {}, ["The graph is too big for this structure. "]),
+        `It would take ${formula}, about ${formatBytes(bytes)}. `,
+        `The page builds it for graphs of up to ${limit}; the adjacency list holds the graph instead.`,
+    ]);
+}
+
+const count = (n: number) => n.toLocaleString("en-US");
+
+// decimal units, as storage is usually sold: 1 MB = 1,000,000 bytes
+function formatBytes(bytes: number): string {
+    const units = ["bytes", "KB", "MB", "GB", "TB"];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1000 && unit < units.length - 1) {
+        value /= 1000;
+        unit++;
+    }
+    return `${unit === 0 || value >= 100 ? Math.round(value) : Number(value.toFixed(1))} ${units[unit]}`;
 }
 
 function emptyNote(): HTMLElement {

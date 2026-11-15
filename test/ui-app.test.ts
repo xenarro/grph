@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { App, notices } from "../ui/src/app";
-import { MAX_EDGES, MAX_POINTS } from "../ui/src/model";
+import { GraphModel, MAX_EDGES, MAX_POINTS } from "../ui/src/model";
 import { presets } from "../ui/src/presets";
 
 const STORAGE_KEY = "grph:graph";
@@ -54,6 +54,20 @@ describe("App", () => {
         expect(app.model.edges().length).toBe(MAX_EDGES);
         expect(app.notice).toBe(notices.tooManyEdges);
         expect(app.selection).toEqual({ kind: "point", name: "A" });
+    });
+
+    it("reads from the list again when the graph outgrows the chosen matrix", () => {
+        const app = new App(new GraphModel({ matrix: { points: 2 }, incidence: { points: 2, cells: 2 } }));
+        app.clear();
+        app.addPoint({ x: 100, y: 100 });
+        app.addPoint({ x: 200, y: 100 });
+        app.setReadFrom("matrix");
+        expect(app.readFrom).toBe("matrix");
+
+        app.addPoint({ x: 300, y: 100 });
+        expect(app.readFrom).toBe("list");
+        app.setReadFrom("matrix");
+        expect(app.readFrom).toBe("list");
     });
 
     it("shows an example instead of a saved graph that is too big, and forgets that graph", () => {

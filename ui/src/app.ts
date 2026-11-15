@@ -21,7 +21,7 @@ export type Change = "graph" | "positions" | "view";
 const STORAGE_KEY = "grph:graph";
 
 export class App {
-    readonly model = new GraphModel();
+    readonly model: GraphModel;
     selection: Selection = null;
     // the algorithm step on display, null when no algorithm has run
     step: Step | null = null;
@@ -31,7 +31,8 @@ export class App {
     notice: string | null = null;
     private readonly listeners: ((change: Change) => void)[] = [];
 
-    constructor() {
+    constructor(model: GraphModel = new GraphModel()) {
+        this.model = model;
         const saved = loadSaved();
         try {
             this.model.load(saved ?? presets[0].data);
@@ -54,6 +55,10 @@ export class App {
         if (change === "graph") {
             // a recorded run no longer matches the changed graph
             this.step = null;
+            // a matrix the graph has outgrown can't be read any more
+            if (!this.model.representation(this.readFrom)) {
+                this.readFrom = "list";
+            }
         }
         if (change !== "positions") {
             this.notice = notice;
@@ -160,8 +165,11 @@ export class App {
         this.emit("view");
     }
 
+    // ignored for a matrix the graph is too big for
     setReadFrom(id: RepresentationId): void {
-        this.readFrom = id;
+        if (this.model.representation(id)) {
+            this.readFrom = id;
+        }
         this.emit("view");
     }
 }

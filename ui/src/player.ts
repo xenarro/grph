@@ -23,11 +23,7 @@ export function mountPlayer(root: HTMLElement, app: App): void {
     const algorithm = h("select", { id: "algorithm" }, algorithms.map(a => h("option", { value: a.id }, [a.name])));
     const start = h("select", { id: "start" });
     const target = h("select", { id: "target" });
-    const readFrom = h("select", { id: "read-from" },
-        (Object.keys(representationNames) as RepresentationId[]).map(id =>
-            h("option", { value: id, selected: id === app.readFrom }, [representationNames[id]])
-        ),
-    );
+    const readFrom = h("select", { id: "read-from" });
     const run = h("button", { type: "button", class: "primary" }, ["Run"]);
 
     const field = (label: string, control: HTMLElement) =>
@@ -104,6 +100,17 @@ export function mountPlayer(root: HTMLElement, app: App): void {
         target.value = targetValue;
     };
 
+    // a matrix the graph is too big for can't be chosen
+    const fillReadFromOptions = () => {
+        readFrom.replaceChildren(...(Object.keys(representationNames) as RepresentationId[]).map(id => {
+            const available = app.model.representation(id) !== null;
+            return h("option", { value: id, disabled: !available }, [
+                representationNames[id] + (available ? "" : " (graph too big)"),
+            ]);
+        }));
+        readFrom.value = app.readFrom;
+    };
+
     // why the selected algorithm cannot run on the current graph, if it cannot
     const blocker = (): string => {
         const chosen = selected();
@@ -151,7 +158,7 @@ export function mountPlayer(root: HTMLElement, app: App): void {
         stop();
         note = "";
         try {
-            steps = selected().run(app.model.representation(app.readFrom), {
+            steps = selected().run(app.model.representation(app.readFrom) ?? app.model.list, {
                 start: start.value || undefined,
                 target: target.value || undefined,
             });
@@ -226,11 +233,13 @@ export function mountPlayer(root: HTMLElement, app: App): void {
     app.on(change => {
         if (change === "graph") {
             fillPointOptions();
+            fillReadFromOptions();
             clearRun(steps ? "The graph changed. Run the algorithm again." : "");
         }
     });
 
     fillPointOptions();
+    fillReadFromOptions();
     render();
 }
 
