@@ -1,0 +1,25 @@
+# Run the visualizer:      docker compose up --build      → http://localhost:8080
+# Develop with live reload: docker compose up --build dev  → http://localhost:5173
+
+services:
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    restart: unless-stopped
+
+  dev:
+    # only started when named: docker compose up dev
+    profiles: ["dev"]
+    build:
+      context: .
+      target: dev
+    ports:
+      - "${DEV_PORT:-5173}:5173"
+    volumes:
+      - .:/app
+      # keep the container's own node_modules (Linux builds of native packages)
+      # instead of the ones from the host
+      - /app/node_modules
