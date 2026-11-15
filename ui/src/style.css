@@ -524,3 +524,271 @@ em.math {
     font-family: var(--font-math);
     font-size: 1.12em;
 }
+
+/* ---------- structures */
+
+.structures {
+    display: flex;
+    flex-direction: column;
+    gap: 34px;
+    padding: 20px 22px 32px;
+    background: var(--paper-raised);
+}
+
+.structure-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+}
+
+.structure h2 {
+    margin: 0;
+    font: 600 22px/1.2 var(--font-math);
+}
+
+.reading-badge {
+    padding: 1px 8px;
+    border-radius: 3px;
+    background: var(--highlighter);
+    color: var(--on-highlighter);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.caption {
+    max-width: 62ch;
+    margin: 4px 0 14px;
+    color: var(--pencil);
+    font-size: 14px;
+}
+
+.cost {
+    max-width: 62ch;
+    margin: 10px 0 0;
+    color: var(--pencil);
+    font-size: 13px;
+}
+
+.empty-note {
+    margin: 0;
+    color: var(--pencil);
+}
+
+.scroll {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+button.bare {
+    min-height: 0;
+    padding: 0;
+    border: none;
+    border-radius: 2px;
+    background: none;
+    color: inherit;
+    font: inherit;
+}
+
+button.bare:hover:not(:disabled) {
+    background: none;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+table.grid {
+    border-collapse: collapse;
+}
+
+table.grid th,
+table.grid td {
+    min-width: 36px;
+    height: 34px;
+    padding: 0 7px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+table.grid th {
+    font-weight: 400;
+}
+
+table.grid th .math {
+    font-size: 18px;
+    font-style: italic;
+}
+
+table.grid th.edge-head {
+    font-size: 13px;
+    font-style: italic;
+    font-family: var(--font-math);
+}
+
+table.grid th.edge-head button {
+    font-size: 15px;
+}
+
+table.grid td {
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    font-weight: 600;
+}
+
+table.grid td.corner {
+    border: none;
+    background: none;
+}
+
+table.grid td.zero {
+    color: var(--pencil);
+    font-weight: 400;
+}
+
+table.grid td.row-read,
+table.grid td.col-read,
+table.grid th.col-read {
+    background: var(--highlighter-soft);
+}
+
+table.grid td.cell-read {
+    background: var(--highlighter);
+    color: var(--on-highlighter);
+}
+
+table.grid .selected {
+    outline: 2px dashed var(--ink);
+    outline-offset: -4px;
+}
+
+.flat {
+    margin-top: 10px;
+    font-size: 14px;
+}
+
+.flat summary {
+    color: var(--pencil);
+    cursor: pointer;
+}
+
+.flat-array {
+    max-width: 62ch;
+    margin: 8px 0 0;
+    line-height: 1.9;
+    word-spacing: 0.1em;
+}
+
+.flat-array span {
+    padding: 1px 3px;
+    border-radius: 2px;
+    font-weight: 600;
+}
+
+.flat-array .zero {
+    color: var(--pencil);
+    font-weight: 400;
+}
+
+.flat-array .row-gap {
+    margin-right: 1.1em;
+    padding: 0;
+    font-weight: 400;
+}
+
+.flat-array .row-read {
+    background: var(--highlighter-soft);
+}
+
+.flat-array .cell-read {
+    background: var(--highlighter);
+    color: var(--on-highlighter);
+}
+
+.adjacency-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.list-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 0;
+    padding: 4px 6px;
+    margin: 0 -6px;
+    border-radius: 3px;
+}
+
+.list-row.row-read {
+    background: var(--highlighter-soft);
+}
+
+.list-head {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 34px;
+    padding: 0 8px;
+    border: 2px solid var(--ink);
+    border-radius: 3px;
+    background: var(--paper);
+    font-size: 18px;
+    font-style: italic;
+}
+
+.list-arrow {
+    padding: 0 7px;
+    color: var(--pencil);
+}
+
+.list-node {
+    display: inline-flex;
+    height: 32px;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    background: var(--paper);
+}
+
+.list-node button {
+    display: inline-flex;
+    align-items: stretch;
+}
+
+.list-node .list-name,
+.list-node .list-weight {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 8px;
+}
+
+.list-name {
+    font: italic 17px var(--font-math);
+}
+
+.list-weight {
+    border-left: 1px solid var(--rule);
+    color: var(--pencil);
+    font-size: 13px;
+}
+
+.list-node.cell-read {
+    background: var(--highlighter);
+    color: var(--on-highlighter);
+}
+
+.list-node.cell-read .list-weight {
+    color: var(--on-highlighter);
+}
+
+.list-head.selected,
+.list-node.selected {
+    outline: 2px dashed var(--ink);
+    outline-offset: 2px;
+}
+
+.list-empty {
+    padding-left: 12px;
+    color: var(--pencil);
+    font-size: 13px;
+}
