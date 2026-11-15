@@ -34,7 +34,6 @@ export function mountPlayer(root: HTMLElement, app: App): void {
     const targetField = target.field;
 
     const description = h("p", { class: "algorithm-description" });
-    const notice = h("p", { class: "notice", role: "status" });
 
     // ---- transport row
 
@@ -50,14 +49,13 @@ export function mountPlayer(root: HTMLElement, app: App): void {
     const message = h("p", { class: "step-message", "aria-live": "polite" });
     const lists = h("div", { class: "trace-lists" });
     const transport = h("div", { class: "transport" }, [first, back, play, forward, last, slider, counter, speed]);
-    const replay = h("div", { class: "replay" }, [transport, message, lists, legend()]);
+    const replay = h("div", { class: "replay" }, [transport, message, lists]);
 
     root.append(
         h("div", { class: "setup" }, [
             field("Algorithm", algorithm), startField, targetField, field("Read neighbors from", readFrom), run,
         ]),
         description,
-        notice,
         replay,
     );
 
@@ -115,7 +113,7 @@ export function mountPlayer(root: HTMLElement, app: App): void {
         readFrom.replaceChildren(...(Object.keys(representationNames) as RepresentationId[]).map(id => {
             const available = app.model.representation(id) !== null;
             return h("option", { value: id, disabled: !available }, [
-                representationNames[id] + (available ? "" : " (graph too big)"),
+                representationNames[id] + (available ? "" : " (too big)"),
             ]);
         }));
         readFrom.value = app.readFrom;
@@ -136,17 +134,26 @@ export function mountPlayer(root: HTMLElement, app: App): void {
     const render = () => {
         const chosen = selected();
         description.textContent = chosen.description;
-        startField.hidden = chosen.start === "none";
-        targetField.hidden = chosen.target === "none";
+        // fields an algorithm doesn't use are turned off, not hidden, so the row keeps its shape
+        start.setDisabled(chosen.start === "none");
+        target.setDisabled(chosen.target === "none");
 
         const blocked = blocker();
         run.disabled = blocked !== "";
-        notice.textContent = blocked || note;
 
-        replay.hidden = steps === null;
+        // The replay is always there, so nothing on the page moves when a run starts or ends.
+        // Without a run its controls are off and the message says what to do.
+        message.classList.toggle("idle", !steps);
         if (!steps) {
+            first.disabled = back.disabled = play.disabled = forward.disabled = last.disabled = slider.disabled = true;
+            slider.max = "0";
+            slider.value = "0";
+            counter.textContent = "No run yet";
+            message.textContent = blocked || note || "Press Run to watch the algorithm step by step.";
+            lists.replaceChildren();
             return;
         }
+        play.disabled = slider.disabled = false;
         const step = steps.at(index);
         const atStart = index === 0;
         const atEnd = index === steps.length - 1;
@@ -156,11 +163,12 @@ export function mountPlayer(root: HTMLElement, app: App): void {
         slider.value = String(index);
         counter.textContent = `Step ${index + 1} of ${steps.length}`;
         message.textContent = step.message;
+        // one row per list, its size by its name; a long list shows the end that matters and cuts the rest
         lists.replaceChildren(...step.lists.map(list => h("div", { class: "trace-list" }, [
-            h("span", { class: "trace-list-name" }, [list.name]),
+            h("span", { class: "trace-list-name" }, [list.name, h("span", { class: "trace-list-count" }, [list.items.length.toLocaleString("en-US")])]),
             list.items.length === 0
                 ? h("span", { class: "hint" }, ["empty"])
-                : h("ol", { class: classes({ chips: true, stack: list.name === "Stack" }) }, chips(list)),
+                : h("ol", { class: classes({ chips: true, stack: list.name === "Stack", "keep-back": list.keep === "back" }) }, chips(list)),
         ])));
     };
 
@@ -318,43 +326,28 @@ class PointField {
         return this.typed ? this.input.value.trim() : this.select.value;
     }
 
+    setDisabled(disabled: boolean): void {
+        this.select.disabled = disabled;
+        this.input.disabled = disabled;
+        this.field.classList.toggle("off", disabled);
+    }
+
     onChange(listener: () => void): void {
         this.select.addEventListener("change", listener);
         this.input.addEventListener("change", listener);
     }
 }
 
-// A list of a big graph can hold thousands of points: only the newest ones are shown as chips,
-// and one more chip says how many are left out.
+// A list of a big graph can hold thousands of points: only the end that matters is made into chips,
+// as many as can fill a row.
 const MAX_CHIPS = 30;
 function chips({ items, keep }: TraceList): HTMLElement[] {
     const shown = keep === "front" ? items.slice(0, MAX_CHIPS) : items.slice(-MAX_CHIPS);
-    const chips = shown.map(item => h("li", {}, [item]));
-    const hidden = items.length - shown.length;
-    if (hidden > 0) {
-        const more = h("li", { class: "more" }, [`… ${hidden.toLocaleString("en-US")} more`]);
-        keep === "front" ? chips.push(more) : chips.unshift(more);
-    }
-    return chips;
+    return shown.map(item => h("li", {}, [item]));
 }
 
 function iconButton(label: string, path: string): HTMLButtonElement {
     const button = h("button", { type: "button", class: "icon", "aria-label": label, title: label });
     button.innerHTML = `<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="${path}" fill="currentColor"/></svg>`;
     return button;
-}
-
-function legend(): HTMLElement {
-    const item = (swatch: string, text: string) =>
-        h("li", {}, [h("span", { class: `swatch ${swatch}`, "aria-hidden": "true" }), text]);
-    return h("ul", { class: "legend", "aria-label": "Legend" }, [
-        item("point", "not reached"),
-        item("point active", "reached"),
-        item("point done", "finished"),
-        item("point current", "being read"),
-        item("line tree", "edge followed"),
-        item("line skipped", "edge skipped"),
-        item("point result", "result"),
-        item("point cycle", "cycle"),
-    ]);
 }

@@ -226,7 +226,7 @@ input[type="number"] {
 .workspace {
     display: grid;
     grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr);
-    grid-template-rows: minmax(440px, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto;
     grid-template-areas:
         "board structures"
         "player structures";
@@ -263,6 +263,14 @@ input[type="number"] {
     .structures {
         overflow: auto;
     }
+
+    /* The player has a fixed height: a run starting, or a long message, never resizes the drawing.
+       What doesn't fit scrolls inside it. */
+    .player {
+        height: clamp(240px, 42vh, 360px);
+        overflow-y: auto;
+    }
+
 }
 
 @media (max-width: 999px) {
@@ -360,6 +368,41 @@ input[type="number"] {
 
 .inspector p {
     margin: 0;
+}
+
+@media (min-width: 1000px) {
+    /* a fixed height, so selecting a point or an edge never resizes the drawing;
+       longer text is cut to two lines (the whole of it is in its tooltip) */
+    .inspector {
+        height: 64px;
+        flex-wrap: nowrap;
+        overflow: hidden;
+    }
+
+    .inspector p {
+        display: -webkit-box;
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+
+    .inspector > :not(p, .legend) {
+        flex: none;
+    }
+
+    /* the legend wraps onto a second line rather than being cut */
+    .inspector .legend {
+        flex: 1 1 auto;
+        min-width: 0;
+        gap: 2px 14px;
+    }
+}
+
+/* every structure keeps some room, also while the graph is empty */
+.structure {
+    min-height: 180px;
 }
 
 .hint {
@@ -857,8 +900,8 @@ table.grid .selected {
 .player {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px 20px 18px;
+    gap: 8px;
+    padding: 12px 20px 14px;
 }
 
 .player [hidden] {
@@ -891,11 +934,16 @@ table.grid .selected {
 }
 
 .algorithm-description {
+    min-height: 2.9em;
     color: var(--pencil);
 }
 
 .notice:empty {
     display: none;
+}
+
+.field.off label {
+    opacity: 0.5;
 }
 
 .notice {
@@ -906,8 +954,8 @@ table.grid .selected {
 .replay {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding-top: 12px;
+    gap: 8px;
+    padding-top: 10px;
     border-top: 1px dashed var(--rule);
 }
 
@@ -943,41 +991,71 @@ button.play {
     font-size: 14px;
 }
 
+/* three lines, always: a longer message scrolls instead of pushing the page */
 .step-message {
     max-width: 70ch;
-    min-height: 2.6em;
+    height: calc(3 * 1.35em);
     margin: 0;
-    font: 19px/1.35 var(--font-math);
+    overflow-y: auto;
+    font: 17px/1.35 var(--font-math);
 }
 
+.step-message.idle {
+    color: var(--pencil);
+    font: 15px/1.5 var(--font-ui);
+}
+
+/* a row per list, always two rows high: a list never wraps, it shows the end that matters */
 .trace-lists {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px 28px;
+    flex-direction: column;
+    gap: 6px;
+    height: 62px;
+    overflow: hidden;
 }
 
 .trace-list {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
+    min-width: 0;
+    height: 28px;
 }
 
 .trace-list-name {
+    flex: none;
+    width: 8em;
     color: var(--pencil);
     font-size: 14px;
 }
 
+.trace-list-count {
+    margin-left: 6px;
+    padding: 0 5px;
+    border-radius: 8px;
+    background: var(--paper-raised);
+    font-size: 12px;
+}
+
 .chips {
     display: flex;
-    flex-wrap: wrap;
+    flex: 1;
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow: hidden;
     gap: 4px;
     margin: 0;
     padding: 0;
     list-style: none;
 }
 
+/* the newest items are at the end: keep that end in view, cut the start */
+.chips.keep-back {
+    justify-content: flex-end;
+}
+
 .chips li {
+    flex: none;
     min-width: 30px;
     padding: 1px 8px;
     border: 1px solid var(--rule);
@@ -991,12 +1069,6 @@ button.play {
     border: 2px solid var(--ink);
 }
 
-.chips li.more {
-    border-style: dashed;
-    background: none;
-    color: var(--pencil);
-    font: 13px var(--font-ui);
-}
 
 .legend {
     display: flex;
@@ -1007,6 +1079,29 @@ button.play {
     color: var(--pencil);
     font-size: 13px;
     list-style: none;
+}
+
+/* fields that keep their width whatever their options say, so the row doesn't reflow */
+#algorithm {
+    width: 13em;
+}
+
+#read-from {
+    width: 11.5em;
+}
+
+#start,
+#target,
+#start-name,
+#target-name {
+    width: 6em;
+}
+
+/* on a low screen the description gives its room to the replay; "How it works" says the same and more */
+@media (min-width: 1000px) and (max-height: 800px) {
+    .algorithm-description {
+        display: none;
+    }
 }
 
 .legend li {

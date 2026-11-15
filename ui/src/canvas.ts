@@ -803,7 +803,7 @@ export function mountCanvas(canvas: HTMLCanvasElement, app: App): void {
     resize();
 }
 
-// ---- looks, matching the legend under the player
+// ---- looks, matching the legend under the drawing (legend.ts)
 
 const EDGE_LOOK = {
     plain: { color: "pencil", width: 2 },

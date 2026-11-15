@@ -3,18 +3,20 @@
 import { edgeLabel } from "../../src/graph/validation";
 import { App } from "./app";
 import { h } from "./dom";
+import { legend } from "./legend";
 
 export function mountInspector(root: HTMLElement, app: App): void {
     const render = () => {
         const selected = app.selection;
         // why the last click did nothing, for example a limit was reached
-        const notice = app.notice && h("p", { class: "notice", role: "status" }, [app.notice]);
+        const notice = app.notice && h("p", { class: "notice", role: "status", title: app.notice }, [app.notice]);
 
         if (!selected) {
+            // while a run is on display the colours matter more than how to edit
             root.replaceChildren(
-                notice || h("p", { class: "hint" }, [
+                notice || (app.step ? legend() : h("p", { class: "hint" }, [
                     "Click empty paper to add a point. Drag a point to move it. Click a point, then another one, to connect them.",
-                ]),
+                ])),
             );
             return;
         }
@@ -32,7 +34,7 @@ export function mountInspector(root: HTMLElement, app: App): void {
             target.addEventListener("click", () => app.chooseTarget(isTarget ? null : name, true));
             root.replaceChildren(
                 h("strong", {}, ["Point ", h("em", { class: "math" }, [name])]),
-                notice || h("p", { class: "hint" }, [`Click another point to connect ${name} to it, or make it where a search starts or ends.`]),
+                notice || h("p", { class: "hint" }, [`Click another point to connect ${name} to it.`]),
                 start,
                 target,
                 remove,
